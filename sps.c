@@ -68,6 +68,7 @@ typedef struct
 {
 	char *one_row;  //one row is made of multiple cell 
 	int row_size;
+	int cels_in_row;
 	
 }row;
 
@@ -79,9 +80,13 @@ void store_commands(char **argv, int is_there_separator, char *commands, int com
 /*This function ll find out what command to do and call the functions */
 int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet);
 //This function just story one command that ll be executed 
-int find_command(char command_separator, char *single_command, char *commands, int *last_command, int commands_char_sum);
+int story_one_command(char command_separator, char *single_command, char *commands, int *last_command, int commands_char_sum);
 /*this ll call command and them it ll be executed */
-int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to);
+int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
+int call_data_struct_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to);
+int call_temporarily(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT]);
+int call_selection_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator);
+
 
 //THIS ARE BEING DONE ON BEGING TO CHECK ARGUMENTS FORMAT AND STORE SEPARATOR 
 int separe(int argc, char *argv[], int *separator); //find cell separator 
@@ -96,7 +101,8 @@ void initialize_sheet(row *sheet, int row_counter);
 int alocate_sheet(row *sheet, int row_counter, int *rows_lenght);
 int store_sheet(row *sheet, char **argv, int row_counter, int is_there_separator, int *rows_lenght);
 void free_sheet(row *sheet, int rows);
-void print_sheet(row *sheet, int row_counter);
+void end_print_sheet(row *sheet, int row_counter);
+int count_cells_in_row(int i, row *sheet, char separator, int y_n);
 
 //FUNCTIONS FOR SIMPLIFICATION
 void array_int_init(int size, int *array); //This ll initalize int array;
@@ -139,7 +145,9 @@ int main(int argc, char **argv)
 
 	errors = store_sheet(sheet, argv, row_counter, is_there_separator, rows_lenght);
 	if(errors != 0) return -1;
-
+	
+	for(int i = 0; i<row_counter; i++)
+		count_cells_in_row(i, sheet, d_separator, 1);
 
 	char commands[commands_char_sum+2]; //here i ll store all the commands that ll be executed on sheet 
 	store_commands(argv, is_there_separator, commands, commands_char_sum);
@@ -147,7 +155,7 @@ int main(int argc, char **argv)
 	if(errors != 0) return -1;
 
 	//printing editet sheet and free memory 
-	print_sheet(sheet, row_counter);
+	end_print_sheet(sheet, row_counter);
 	free(rows_lenght);
 	free_sheet(sheet, row_counter);
 	return 0; 
@@ -160,106 +168,276 @@ char get_last_char(char *aray)
 	return last_char;
 }
 /*
-This function ll get one command and execute it 
-The function seems a little bit longer but it has simple purpose so it is apropriate.
+//i is number of row 
+it just count cels in row.data 
+y = change values       1
+n = just count them 	0
 */
-int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to)
+int count_cells_in_row(int i, row *sheet, char separator, int y_n)
 {
-	//TODO [11_51]  = char1 == 11 
-	int i =0;
-	char hellper = NULL;
-	int commas_in_command = 0;
-	char last_char = get_last_char(single_command);
+	int cells = 0;
+	for(int j = 0; j < sheet[i].row_size; j++)
+		if(sheet[i].one_row[j] == separator)
+			cells++;
+	if(y_n == 1)
+		sheet[i].cels_in_row = cells;
+	return cells;
+}
 
-
+/*if it found data sturctu command it call it ll be executed*/
+//error = -1 bad syntax; 0 = command not found; 1 = command_executed 
+int call_data_struct_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to)
+{
 	if(strcmp(single_command, "irow")==0) 
-		return 0;
-	else if(strcmp(single_command, "arow")==0) 
-		return 0;
-	else if(strcmp(single_command, "drow")==0) 
-        return 0;
-	else if(strcmp(single_command, "icol")==0) 
-        return 0;
-	else if(strcmp(single_command, "acol")==0) 
-		return 0;
-	else if(strcmp(single_command, "dcol")==0) 
-        return 0;
-
-	//SELECTIONS COMANDS 
-	if(single_command[i] == '[')
 	{
-		if(last_char == ']')
-			//selection_changer()
-			return 0;		
+		return 1;
+	}
+	else if(strcmp(single_command, "arow")==0) 
+	{
+		return 1;
+	}
+	else if(strcmp(single_command, "drow")==0) 
+	{
+		return 1;
+	}
+	else if(strcmp(single_command, "icol")==0) 
+	{
+		return 1;
+	}
+	else if(strcmp(single_command, "acol")==0) 
+	{
+		return 1;
+	}
+	else if(strcmp(single_command, "dcol")==0) 
+	{
+		return 1;
+	}
+	return  0;
+}
+/*
+it ll change table select 
+If the select is bigger them table it ll make it bigerr 
+[R,C], [R1,R2,C1,C2],[_,C], [_,_], [min], [max], [find STR], [_]
+*/
+int selection_changer(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator)
+{
+	int commas = 0;
+
+	if(strstr(single_command, "[_,_]") != NULL)  //[_,_]
+	{			
+		return 1;
+	}
+	else if(strstr(single_command, "[min]") != NULL)  //[min]
+	{
+		return 1;
+	}
+	else if(strstr(single_command, "[max]") != NULL) //[max]
+	{
+		return 1;
+	}
+	else if(strstr(single_command, "[_]") != NULL)  //[_]
+	{
+		return 1;
+	}
+	else if(strstr(single_command, "[find") != NULL)
+	{
+		return 1;
+	}
+	else
+	{
+		for(int i = 0; single_command[i] != '\0';i++)
+			if(single_command[i] == ',');
+				commas++;
+		if(commas == 1) //[R,C]
+		{				
+			return 1;
+		} 
+		else if(commas == 3)   //[R1,R1,C1,C2]
+		{					
+			return 1;
+		}
+		else
+		{
+			//TODO error 
+			return -1;
+		}
+	}
+	return 0;
+}
+
+/*if it found selection command it call it ll be executed*/
+int call_selection_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator)
+{
+	if(strstr(single_command, "[set]") != NULL)  //[set]
+		return 0;
+
+	if(single_command[0] == '[')
+	{
+		if(last_character == ']')
+		{
+			selection_changer(sheet, single_command, row_from, row_to, cell_from, cell_to, last_character, separator);
+			return 1;		
+		}	
 		else
 			fprintf(stderr, "Error if command start with [ it has to ned with ]");
 	}
-	
-	if(strstr(single_command, "set") != NULL)  //set STR || [set]
+	return 0;
+}
+
+/*if it found command for editing sheet content it call it ll be executed*/
+int call_content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character)
+{
+	if(strstr(single_command, "set") != NULL)  //set STR 
 	{
-		if(single_command[i] == '[')
-			if(last_char == ']') //4 is not magic nummber it is becouse syntax of comand [set]  [0 s1 2e t3 ]4
-				//TODO CALL [set] 
-				return 0;
-			else
-				fprintf(stderr, "ERROR bad syntax of [set] command ");
-		else
-			//TODO CALL set STR 
-			return 0;
+		if(single_command[0] != '[')
+			return 1;
 	}
 	if(strstr(single_command, "clear") != NULL) 
-		return 0;
+		return 1;
 	if(strstr(single_command, "swap") != NULL) //swap [R,C] 
 	{
 		if(single_command[5] == '[')
-			if(last_char == ']')
+			if(last_character == ']')
 				//CALL SWAP 
-				return 0;
+				return 1;
 			else
+			{
 				fprintf(stderr, "ERROR bad syntax of swap command ");
+				return -1;
+			}	
 		else
+		{
 			fprintf(stderr, "ERROR bad syntax of swap command ");
+			return -1;
+		}
 	}
 	if(strstr(single_command, "sum") != NULL) //sum [R,C]
 	{
 		if(single_command[4] == '[')
-			if(last_char == ']')
-				return 0;
+			if(last_character == ']')
+				return 1;
 			else
+			{
 				fprintf(stderr, "ERROR bad syntax of sum command ");
+				return -1;
+			}
 		else
+		{
 			fprintf(stderr, "ERROR bad syntax of sum command ");
+			return -1;
+		}
 	}
 	if(strstr(single_command, "avg") != NULL)  //avg [R,C]
 	{
 		if(single_command[4] == '[')
-			if(last_char == ']')
-				return 0;
+			if(last_character == ']')
+				return 1;
 			else
+			{
 				fprintf(stderr, "ERROR bad syntax of avg command ");
+				return -1;
+			}
 		else
-			fprintf(stderr, "ERROR bad syntax of avg command ");
+			{
+				fprintf(stderr, "ERROR bad syntax of avg command ");
+				return -1;
+			}
 	}
 	if(strstr(single_command, "count") != NULL) //count [R,C]
 	{
 		if(single_command[6] == '[')
-			if(last_char == ']')
-				return 0;
+			if(last_character == ']')
+				return 1;
 			else
+			{
 				fprintf(stderr, "ERROR bad syntax of avg command ");
+				return -1;
+			}
 		else
+		{
 			fprintf(stderr, "ERROR bad syntax of avg command ");
+			return -1;
+		}
 	}
 	if(strstr(single_command, "len") != NULL) //len [R,C]
 	{
 		if(single_command[4] == '[')
-			if(last_char == ']')
-				return 0;
+			if(last_character == ']')
+				return 1;
 			else
+			{
 				fprintf(stderr, "ERROR bad syntax of avg command ");
+				return -1;
+			}
 		else
+		{
 			fprintf(stderr, "ERROR bad syntax of avg command ");
+			return -1;
+		}		
 	}
+	return 0;
+}
+
+
+/*if it found command for temporarily variables it call it ll be executed*/
+int call_temporarily(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT])
+{
+
+	if(strstr(single_command, "[set]") != NULL)  //[set]
+	{
+			return 1;
+	}
+	if(strstr(single_command, "def _") != NULL)  // def _X
+	{
+			return 1;
+	}
+	if(strstr(single_command, "use _") != NULL)  // use _X
+	{
+			return 1;
+	}
+	if(strstr(single_command, "int _") != NULL)  // inx _X
+	{
+			return 1;
+	}
+
+
+	return 0;
+}
+/*
+This function ll get one command and execute it 
+*/
+int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator)
+{
+	//TODO [11_51]  = char1 == 11 
+	char hellper = NULL;
+	int commas_in_command = 0;
+	char last_char = get_last_char(single_command);
+	int error = 0;
+
+	//error = -1 bad syntax; 0 = command not found; 1 = command_executed 
+	error = call_data_struct_com(sheet, single_command, row_from, row_to, cell_from, cell_to);
+	if(error == -1)
+		return -1;
+	else if(error == 1)
+		return 0;
+
+	error = call_selection_com(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator);
+	if(error == -1)
+		return -1;
+	else if(error == 1)
+		return 0;
+
+	error = call_content_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char);
+	if(error == -1)
+		return -1;
+	else if(error == 1)
+		return 0;	
+	
+	error = call_temporarily(sheet, single_command, row_from, row_to, cell_from, cell_to, tempo_vars);
+	if(error == -1)
+		return -1;
+	else if(error == 1)
+		return 0;	
 
 	fprintf(stderr, "Error command not found ");
 	return 0 ;
@@ -279,8 +457,8 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 
 	for(last_command; last_command<=commands_sum;)
 	{
-		find_command(command_separator, single_command, commands, &last_command, commands_char_sum);
-		error = call_command(sheet, single_command, &row_from, &row_to, &cell_from, &cell_to);
+		story_one_command(command_separator, single_command, commands, &last_command, commands_char_sum);
+		error = call_command(sheet, single_command, &row_from, &row_to, &cell_from, &cell_to, tempo_vars, separator);
 		if(error != 0) return -1;
 	}
 	printf("\n");
@@ -290,7 +468,7 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 /*
 This function just story one command that ll be executed 
 */
-int find_command(char command_separator, char *single_command, char *commands, int *last_command, int commands_char_sum)
+int story_one_command(char command_separator, char *single_command, char *commands, int *last_command, int commands_char_sum)
 {
 	int i = 0, help = 0, j = 0;
 	if(help != *last_command)
@@ -381,10 +559,11 @@ void initialize_sheet(row *sheet, int row_counter)
 	for(int i=0; i<row_counter;i++)
 	{
 		sheet[i].row_size = 0;
+		sheet[i].cels_in_row = 0;
 		sheet[i].one_row = NULL;
 	}
 }
-void print_sheet(row *sheet, int row_counter)
+void end_print_sheet(row *sheet, int row_counter)
 {
 	for(int i = 0; i < row_counter;i++)
 	{
@@ -416,6 +595,7 @@ int alocate_sheet(row *sheet, int row_counter, int *rows_lenght)
 		sheet[i].one_row = malloc((rows_lenght[i] + 10) * sizeof(char));
 		if(sheet[i].one_row == NULL)
 		{
+			//TODO CALL DESTRUCTOR
 			fprintf(stderr, "Maloc error \n");
 			return -1;
 		}
