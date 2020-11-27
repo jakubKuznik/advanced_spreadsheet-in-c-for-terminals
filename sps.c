@@ -51,11 +51,15 @@ inc _X - numerická hodnota v dočasné proměnné bude zvětšena o 1. Pokud do
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <ctype.h>
 
 
 #define MAX_LINUX_FILE_SIZE 256
 #define COMANDS_MAXIMUM 1000 // bigest command is 11 chars. and i add some reserve 
 #define MAX_COMMAND_SIZE 1000
+
+#define FIND_COM_STRING_START 6//[find 
 
 #define COMMNDS_POSITION_WITH_SEPARATOR 3
 #define COMMNDS_POSITION_WITHOUT_SEPARATOR 1
@@ -78,15 +82,19 @@ typedef struct
 int commands_error_check(char **argv, int is_there_separator, int *count_chars, int *count_commands);
 void store_commands(char **argv, int is_there_separator, char *commands, int command_char_sum);
 /*This function ll find out what command to do and call the functions */
-int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet);
+int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet, int row_counter);
 //This function just story one command that ll be executed 
 int story_one_command(char command_separator, char *single_command, char *commands, int *last_command, int commands_char_sum);
 /*this ll call command and them it ll be executed */
-int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
+int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int row_counter);
 int call_data_struct_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to);
 int call_temporarily(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT]);
-int call_selection_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator);
-
+int call_selection_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter);
+//This funciton is called if i know that selection has format [R,C] or [R1,R2,C1,C2]
+int selection_changer_simplyfy(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_counter);
+//it ll find smallest num or bigest num in selection 
+int min_max_inselection(row *sheet, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int operation);
+int select_comm_find(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator );
 
 //THIS ARE BEING DONE ON BEGING TO CHECK ARGUMENTS FORMAT AND STORE SEPARATOR 
 int separe(int argc, char *argv[], int *separator); //find cell separator 
@@ -107,6 +115,9 @@ int count_cells_in_row(int i, row *sheet, char separator, int y_n);
 //FUNCTIONS FOR SIMPLIFICATION
 void array_int_init(int size, int *array); //This ll initalize int array;
 char get_last_char(char *aray);
+int get_cell_position(row *sheet, int row, int cell, char separator);
+void array_char_init(char *array, int size);
+
 
 int main(int argc, char **argv)
 {
@@ -151,7 +162,7 @@ int main(int argc, char **argv)
 
 	char commands[commands_char_sum+2]; //here i ll store all the commands that ll be executed on sheet 
 	store_commands(argv, is_there_separator, commands, commands_char_sum);
-	errors = command_execution(commands_sum, commands, commands_char_sum, d_separator, sheet);
+	errors = command_execution(commands_sum, commands, commands_char_sum, d_separator, sheet, row_counter);
 	if(errors != 0) return -1;
 
 	//printing editet sheet and free memory 
@@ -215,67 +226,284 @@ int call_data_struct_com(row *sheet, char *single_command, int *row_from, int *r
 	return  0;
 }
 /*
+i call this function when i know that selection ll have this format 	
+TYPE1		TYPE2
+[R,C] || [R1,R2,C1,C2]
+*/
+int selection_changer_simplyfy(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_counter)
+{
+	int j = 1, k=0;
+	char num1[MAX_COMMAND_SIZE], num2[MAX_COMMAND_SIZE], num3[MAX_COMMAND_SIZE], num4[MAX_COMMAND_SIZE];
+	if(type == 1) //[R,C]
+	{			
+		if(single_command[j] == '_')   // [_,C]
+		{
+			*h_rf = 1;
+			*h_rt = row_counter; 
+			for(j = j+2; isdigit(single_command[j]) != 0;j++)
+				num1[k++] = single_command[j];
+			*h_ct = *h_cf = atoi(num1);
+		}
+		else  // [R,_]  or [R,C]
+		{
+			for(j; isdigit(single_command[j]) != 0;j++)
+				num1[k++] = single_command[j];				
+			*h_rt = *h_rf = atoi(num1);
+			k = 0;
+			if(single_command[j+1] == '_') 
+			{					
+				*h_cf = 1;
+				*h_ct = (sheet[0].cels_in_row + 1);
+			}
+			else
+			{
+				for(j=j+1; isdigit(single_command[j]) != 0; j++)
+					num2[k++] = single_command[j];
+				*h_cf = *h_ct = atoi(num2);
+			}
+		}
+		return 1;
+	}
+	else  //[R1,R2,R3,R4]
+	{
+		for(j; isdigit(single_command[j]) != 0; j++)
+			num1[k++] = single_command[j];
+		k = 0;
+		for(j = j+1; isdigit(single_command[j]) != 0; j++)
+			num2[k++] = single_command[j];
+		k = 0;
+		for(j = j+1; isdigit(single_command[j]) != 0; j++)				
+			num3[k++] = single_command[j];
+		k = 0;
+		for(j = j+1; isdigit(single_command[j]) != 0; j++)
+			num4[k++] = single_command[j];
+		*h_rf = atoi(num1);
+		*h_rt = atoi(num2);
+		*h_cf = atoi(num3);
+		*h_ct = atoi(num4);
+		return 1;
+	}
+	fprintf(stderr, "ERROR cant parse comand type [R,C] or [R1,R2,R3,R4]");
+	return 0;
+
+}
+void array_char_init(char *array, int size)
+{
+	for(int i = 0; i < size; i++)
+		array[i] = 0;
+}
+/*
+It ll get position where does cell start. 
+just right after separator
+if u want row 1 teel function row 1 it ll automaticly find row[0]
+*/
+int get_cell_position(row *sheet, int row, int cell, char separator)
+{
+	int counter_separator = 0;
+	if(cell == 1)
+		return 0;
+	for(int i = 0; i<=sheet[row-1].row_size;i++)
+		if(sheet[row-1].one_row[i] == separator && sheet[row-1].one_row[i-1] != '\\')
+		{
+			counter_separator++;
+			if(counter_separator == cell-1)
+				return i+1;
+		}
+	return 0;
+}
+/*
+just store one cell to *char and end with \0
+*/
+int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
+{
+	int k = 0;
+	int position = 0;
+	position = get_cell_position(sheet, row, cell, separator);
+	for(;sheet[row-1].one_row[position] != separator && sheet[row-1].one_row[position-1] != '\\' && position < sheet[row-1].row_size;position++)
+		store[k++] = sheet[row-1].one_row[position];
+	store[k] = '\0';
+}
+/*
+it ll find cell where is a biggest or smalest number in selection and them it ll change selection to that cell
+operation 1 = min
+operation 2 = max
+*/
+int min_max_inselection(row *sheet, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int operation)
+{
+	int help;
+	int result;
+	char hellper[MAX_COMMAND_SIZE];
+	bool firs_time = false;
+
+	for(int i = *row_from-1; i < *row_to; i++)
+	{
+		for(int j = *cell_from -1; j < *cell_to;j++)
+		{
+			store_one_cell(hellper, sheet, i+1, j+1, separator);
+			if(isdigit(hellper[0]))
+			{
+				help = atoi(hellper);
+				if(firs_time == false)
+				{
+					result = help;
+					firs_time = true;
+				}
+				if(operation == 1)//min
+				{
+					if(help < result)
+					{
+						result = help;
+						*row_from = i + 1;
+						*row_to = i + 1;
+						*cell_to = j + 1;
+						*cell_from = j + 1;
+					}
+				}
+				else//max 
+				{
+					if(help>result)
+					{
+						result = help;
+						*row_from = *row_to = i+1;
+						*cell_from = *cell_to = j+1;
+					}
+				}
+			}	
+		}
+	}
+	return result;
+}
+/*
+[find STR]
+it ll find string in sheet in alredy existing selection and set that cell as new selection 
+*/
+int select_comm_find(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator )
+{
+	char help[MAX_COMMAND_SIZE];
+	int k = 0;
+	char one_cell[MAX_COMMAND_SIZE];
+	
+	for(int i = FIND_COM_STRING_START;single_command[i] != ']' && single_command[i] != '\0';i++)
+		help[k++] = single_command[i];
+	help[k] = '\0';
+	
+	//in selection find first cell where it is stored 
+	for(int i = *row_from-1; i < *row_to; i++)
+	{
+		for(int j = *cell_from -1; j < *cell_to;j++)
+		{
+			store_one_cell(one_cell, sheet, i+1, j+1, separator);
+			if((strstr(one_cell, help)) != NULL)
+			{
+				*row_to = *row_from = i + 1;
+				*cell_from = *cell_to = j +1;
+				return 1;
+			}
+			array_char_init(one_cell, MAX_COMMAND_SIZE);
+		}
+	}
+	return 0;
+}
+/*
 it ll change table select 
 If the select is bigger them table it ll make it bigerr 
 [R,C], [R1,R2,C1,C2],[_,C], [_,_], [min], [max], [find STR], [_]
 */
-int selection_changer(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator)
+int selection_changer(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter)
 {
+	int j = 1, k = 0;
 	int commas = 0;
+	// i ll store numbers to this arrays and them parse it to numbers 
+	char num1[MAX_COMMAND_SIZE], num2[MAX_COMMAND_SIZE], num3[MAX_COMMAND_SIZE], num4[MAX_COMMAND_SIZE];
+	bool command_executed = false;
+	int h_rf = *row_from, h_rt = *row_to, h_cf = *cell_from, h_ct = *cell_to;   //h mean help 
 
-	if(strstr(single_command, "[_,_]") != NULL)  //[_,_]
-	{			
-		return 1;
-	}
-	else if(strstr(single_command, "[min]") != NULL)  //[min]
+	if(strcmp(single_command, "[_,_]")==0)  //[_,_] //all table select 
 	{
-		return 1;
+		h_rf = 1;
+		h_rt = row_counter;
+		h_cf = 1;
+		h_ct = sheet[0].cels_in_row + 1;
+		command_executed = true;
 	}
-	else if(strstr(single_command, "[max]") != NULL) //[max]
+	else if(strcmp(single_command, "[min]")==0)  //[min]
 	{
-		return 1;
+		min_max_inselection(sheet, &h_rf, &h_rt, &h_cf, &h_ct, separator,1);
+		command_executed = true;
 	}
-	else if(strstr(single_command, "[_]") != NULL)  //[_]
+	else if(strcmp(single_command, "[max]")== 0) //[max]
 	{
-		return 1;
+		min_max_inselection(sheet, &h_rf, &h_rt, &h_cf, &h_ct, separator,2);
+		command_executed = true;
 	}
-	else if(strstr(single_command, "[find") != NULL)
+	else if(strcmp(single_command, "[_]")== 0)  //[_]
 	{
-		return 1;
+		//TODO it restore select from 	
+		command_executed = true;
+	}
+	else if(strstr(single_command, "[find") != NULL) //
+	{
+		select_comm_find(sheet, single_command, &h_rf, &h_rt, &h_cf, &h_ct, separator);
+		command_executed = true;
 	}
 	else
 	{
 		for(int i = 0; single_command[i] != '\0';i++)
-			if(single_command[i] == ',');
+			if(single_command[i] == ',')
 				commas++;
+		
 		if(commas == 1) //[R,C]
-		{				
-			return 1;
-		} 
-		else if(commas == 3)   //[R1,R1,C1,C2]
-		{					
-			return 1;
+		{
+			if(selection_changer_simplyfy(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 1, sheet, row_counter) == 1) 
+				command_executed = true;
+		}
+		else if(commas == 3)   //[R1,R2,C1,C2]
+		{
+			if(selection_changer_simplyfy(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 2, sheet, row_counter) == 1)
+				command_executed = true;
 		}
 		else
 		{
-			//TODO error 
+			fprintf(stderr, "ERROR you have to bad format if you want to select it has to be [R,C] or [R1,R2,C1,C2]\n");
 			return -1;
 		}
+	}
+	if(command_executed == 1)
+	{
+		//if new selection is bigger them table resize table 
+		printf("old %d %d %d %d",*row_from, *row_to, *cell_from, *cell_to);
+		printf("___new %d %d %d %d \n",h_rf, h_rt, h_cf, h_ct);
+
+		if(h_rt > row_counter)
+		{				
+			printf("                  it has to be resized ");
+		}
+		if(h_ct > sheet[0].cels_in_row + 1)
+		{
+			printf("                  it has to be resized ");
+		}
+
+		*row_from = h_rf;
+		*row_to = h_rt;
+		*cell_from = h_cf;
+		*cell_to = h_ct;
+
+		return 1;	
 	}
 	return 0;
 }
 
 /*if it found selection command it call it ll be executed*/
-int call_selection_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator)
+int call_selection_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter)
 {
-	if(strstr(single_command, "[set]") != NULL)  //[set]
+	if(strcmp(single_command, "[set]") == 0)  //[set]
 		return 0;
 
 	if(single_command[0] == '[')
 	{
 		if(last_character == ']')
 		{
-			selection_changer(sheet, single_command, row_from, row_to, cell_from, cell_to, last_character, separator);
+			selection_changer(sheet, single_command, row_from, row_to, cell_from, cell_to, last_character, separator,row_counter);
 			return 1;		
 		}	
 		else
@@ -406,7 +634,7 @@ int call_temporarily(row *sheet, char *single_command, int *row_from, int *row_t
 /*
 This function ll get one command and execute it 
 */
-int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator)
+int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int row_counter)
 {
 	//TODO [11_51]  = char1 == 11 
 	char hellper = NULL;
@@ -421,7 +649,7 @@ int call_command(row *sheet, char *single_command, int *row_from, int *row_to, i
 	else if(error == 1)
 		return 0;
 
-	error = call_selection_com(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator);
+	error = call_selection_com(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator, row_counter);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
@@ -444,7 +672,7 @@ int call_command(row *sheet, char *single_command, int *row_from, int *row_to, i
 }
 
 /*This function ll find out what command to do and call the functions*/ 
-int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet)
+int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet, int row_counter)
 {
 	char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT];
 	char single_command[1000]; //max str that u can write to table is 1000 becouse max command size is 1000
@@ -458,10 +686,9 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 	for(last_command; last_command<=commands_sum;)
 	{
 		story_one_command(command_separator, single_command, commands, &last_command, commands_char_sum);
-		error = call_command(sheet, single_command, &row_from, &row_to, &cell_from, &cell_to, tempo_vars, separator);
+		error = call_command(sheet, single_command, &row_from, &row_to, &cell_from, &cell_to, tempo_vars, separator, row_counter);
 		if(error != 0) return -1;
 	}
-	printf("\n");
 	return 0;
 }
 
