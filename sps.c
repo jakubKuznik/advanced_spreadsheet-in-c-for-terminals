@@ -44,27 +44,19 @@ def _X - hodnota aktuální buňky bude nastavena do dočasné proměnné X (kde
 use _X - aktuální buňka bude nastavena na hodnotu z dočasné proměnné X (kde X identifikuje dočasnou proměnnou _0 až _9)
 inc _X - numerická hodnota v dočasné proměnné bude zvětšena o 1. Pokud dočasná proměnná neobsahuje číslo, bude výsledná hodnota proměnné nastavená na 1.
 [set] - nastaví aktuální výběr buněk do dočasné proměnné _ (ukládá se pouze, které buňky jsou vybrány, nikoliv jejich obsah)
-
 */
-
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <ctype.h>
 
-
 #define MAX_LINUX_FILE_SIZE 256
 #define COMANDS_MAXIMUM 1000 // bigest command is 11 chars. and i add some reserve 
 #define MAX_COMMAND_SIZE 1000
-
 #define FIND_COM_STRING_START 6//[find 
-
 #define COMMNDS_POSITION_WITH_SEPARATOR 3
 #define COMMNDS_POSITION_WITHOUT_SEPARATOR 1
-
-
 #define TEMPO_VARS_MAX 10
 #define TEMPO_VARS_LENGHT 1000
 
@@ -75,7 +67,6 @@ typedef struct
 	int cels_in_row;
 	
 }row;
-
 
 //FUNCTIONS THAT ARE USED FOR WORK WITH INPUT COMMANDS 
 //This function check if there is less them 1000 commands and if there is less tham 1000 commands
@@ -118,7 +109,6 @@ char get_last_char(char *aray);
 int get_cell_position(row *sheet, int row, int cell, char separator);
 void array_char_init(char *array, int size);
 
-
 int main(int argc, char **argv)
 {
 	int errors = 0; 
@@ -126,7 +116,6 @@ int main(int argc, char **argv)
 	int d_separator;		
 	int row_counter = 0;
 	int *rows_lenght;
-
 	int commands_char_sum = 0;	
 	int commands_sum = 0;  //how many commands are on input 
 
@@ -194,7 +183,6 @@ int count_cells_in_row(int i, row *sheet, char separator, int y_n)
 		sheet[i].cels_in_row = cells;
 	return cells;
 }
-
 /*if it found data sturctu command it call it ll be executed*/
 //error = -1 bad syntax; 0 = command not found; 1 = command_executed 
 int call_data_struct_com(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to)
@@ -246,8 +234,7 @@ int selection_changer_simplyfy(char *single_command, int *h_rf, int *h_rt, int *
 		}
 		else  // [R,_]  or [R,C]
 		{
-			for(j; isdigit(single_command[j]) != 0;j++)
-				num1[k++] = single_command[j];				
+			for(j; isdigit(single_command[j]) != 0;j++); num1[k++] = single_command[j];				
 			*h_rt = *h_rf = atoi(num1);
 			k = 0;
 			if(single_command[j+1] == '_') 
