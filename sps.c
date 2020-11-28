@@ -61,6 +61,10 @@ inc _X - numerická hodnota v dočasné proměnné bude zvětšena o 1. Pokud do
 #define TEMPO_VARS_MAX 10
 #define TEMPO_VARS_LENGHT 1000
 #define COMMAND_SEPARATOR ';'
+#define NUMBER_IS_LOCATED 5   // def _X use _X inc _X should have number on position 5 
+#define BRACKET_POSITION 5   // swap [R,C]
+#define ARGUMENT_SUM_POSIBILITY_ONE 5
+#define ARGUMENT_SUM_POSIBILITY_TWO 3
 
 typedef struct 
 {
@@ -89,7 +93,8 @@ int data_edit(row *sheet, char *single_command, int *row_from, int *row_to, int 
 int temp_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT],int *temp_10, char separator );
 /*Actual cell ll be stored to X_10 temporarily var that is reserved for selections */
 int temp_set(int row_to, int cell_to, int *temp_10);
-int temp_def(row *sheet, char *single_command, int row_to, int cell_to, char temp_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
+int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
+int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
 
 /*these commands are for selection change */
 int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter);
@@ -119,13 +124,20 @@ int store_sheet(row *sheet, char **argv, int row_counter, int is_there_separator
 void free_sheet(row *sheet, int rows);
 void end_print_sheet(row *sheet, int row_counter);
 int count_cells_in_row(int i, row *sheet, char separator, int y_n);
+int sheet_row_realoc(row *sheet, int row, int space);
+
+//FUNCTIONS FOR EDITING SHEET
+int dellete_cell_value(row *sheet, int row, int cell, char separator);
+int row_move_right(row *sheet, int row, int cell, int space, char separator);
+int change_cell_value(row *sheet, int row, int cell, char separator, char *value, int size);
+
 
 //FUNCTIONS FOR SIMPLIFICATION
 void array_int_init(int size, int *array); //This ll initalize int array;
 char get_last_char(char *aray);
 int get_cell_position(row *sheet, int row, int cell, char separator);
 void array_char_init(char *array, int size);
-
+int get_array_size(char *array, int max_size);
 
 int main(int argc, char **argv)
 {
@@ -179,6 +191,68 @@ int main(int argc, char **argv)
 	free_sheet(sheet, row_counter);
 	return 0; 
 }
+//TODO
+/*
+It move row content from one cell to right.
+Also cell and row is altomaticly -1
+//BEFORE U CALL THIS FUNCTION U HAVE TO DO SHEET_ROW_REALOC!!!
+*/
+int row_move_right(row *sheet, int row, int cell, int space, char separator)
+{
+	row = row -1;
+	cell = cell -1;
+	int k = 0;
+	char *help = NULL;
+	int position =0;
+	position = get_cell_position(sheet, row+1, cell+1, separator) ;
+
+	help = malloc((sheet[row].row_size + space) *sizeof(char));
+	if(help == NULL)
+	{
+		fprintf(stderr, "ERROR malloc failed \n");
+		return -1;
+	}
+	for(int i = position-2; i < sheet[row].row_size + space; i++)
+	{
+		help[k++] = sheet[row].one_row[i];
+		if(sheet[row].one_row[i] == '\n')
+			break;
+	}
+
+	for(int i =0;i < k;i++ )
+	{
+		putchar(help[i]);
+	}
+
+	k = 0;
+	for(int i = position + space; i < sheet[row].row_size + space ;i++)
+	{
+		sheet[row].one_row[i] = help[k];
+		if(help[k] == '\n')
+			break;
+		k++;
+	}
+
+	free(help);
+}
+//TODO
+/*
+If i want put some new content to cell. I can resize it
+Function automaticly do row -1;
+*/
+int sheet_row_realoc(row *sheet, int row, int space)
+{
+	space = space +2;
+	row = row -1;
+	sheet[row].one_row = realloc(sheet[row].one_row, (sheet[row].row_size + space) * sizeof(char));
+	if(sheet[row].one_row == NULL)
+	{
+		fprintf(stderr, "ERROR realoc not succesfull\n");
+		return -1;
+	}
+	sheet[row].row_size = (sheet[row].row_size + space);
+	return 0;
+}
 char get_last_char(char *aray)
 {
 	char last_char = '\0';
@@ -202,7 +276,14 @@ int count_cells_in_row(int i, row *sheet, char separator, int y_n)
 		sheet[i].cels_in_row = cells;
 	return cells;
 }
-
+int get_array_size(char *array, int max_size)
+{
+	int size = 0;
+	for(; size < max_size; size++)
+		if(array[size] == '\0')
+			break;
+	return size;
+}
 /*if it found data sturctu command it call it ll be executed*/
 //error = -1 bad syntax; 0 = command not found; 1 = command_executed 
 int data_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to)
@@ -327,8 +408,14 @@ int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
 	int k = 0;
 	int position = 0;
 	position = get_cell_position(sheet, row, cell, separator);
-	for(;sheet[row-1].one_row[position] != separator && sheet[row-1].one_row[position-1] != '\\' && position < sheet[row-1].row_size;position++)
+	for(;position < sheet[row-1].row_size ;position++)
+	{
 		store[k++] = sheet[row-1].one_row[position];
+		if(sheet[row-1].one_row[position] == '\n')
+			break;
+		if(sheet[row-1].one_row[position] == separator)
+			break;
+	}
 	store[k] = '\0';
 }
 /*
@@ -518,6 +605,28 @@ int select_change(row *sheet, char *single_command, int *row_from, int *row_to, 
 	return 0;
 }
 
+
+int change_cell_value(row *sheet, int row, int cell, char separator, char *value,int size)
+{
+	int position = get_cell_position(sheet,row, cell , separator);
+	for(int i = 0; i < size+2 ;i++)
+	{
+		if(value[i] == '\0')
+			break;
+		sheet[row-1].one_row[position] = value[i];
+		position = position +1 ;
+	
+	}
+
+}
+int dellete_cell_value(row *sheet, int row, int cell, char separator)
+{
+	int position = get_cell_position(sheet, row, cell, separator);
+	for(int i = position; sheet[row-1].one_row[i] != separator && sheet[row-1].one_row[i] != '\n';i++)
+		sheet[row-1].one_row[i] = '\0';
+	return 0;
+}
+
 /*if it found command for editing sheet content it call it ll be executed*/
 int call_content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character)
 {
@@ -530,7 +639,7 @@ int call_content_edit(row *sheet, char *single_command, int *row_from, int *row_
 		return 1;
 	if(strstr(single_command, "swap") != NULL) //swap [R,C] 
 	{
-		if(single_command[5] == '[')
+		if(single_command[BRACKET_POSITION] == '[')
 			if(last_character == ']')
 				//CALL SWAP 
 				return 1;
@@ -611,20 +720,20 @@ int call_content_edit(row *sheet, char *single_command, int *row_from, int *row_
 	}
 	return 0;
 }
-
-
 /*Value of cell ll be stored to temp var _X. X can be num 0 9
 def _X 
 */
-int temp_def(row *sheet, char *single_command, int row_to, int cell_to, char temp_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator)
+int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator)
 {
+
 	char help[MAX_COMMAND_SIZE];
+	array_char_init(help,MAX_COMMAND_SIZE);
 	int l = 0;
 	char help_num[1];
 	help_num[0] = 0;
 	int tempo_var_num = 0;
 	
-	store_one_cell(help, sheet, row_to, cell_to, separator);
+	store_one_cell(help, sheet, row, cell, separator);
 	if(isdigit(single_command[5]) != 0)
 	{
 		help_num[0] = single_command[5];
@@ -634,21 +743,13 @@ int temp_def(row *sheet, char *single_command, int row_to, int cell_to, char tem
 	{
 		fprintf(stderr, "ERROR bad syntax of command def_X. X has to be number ");
 		return -1;
-	}	
-	
-	if(tempo_var_num < 0 && tempo_var_num > 9)
-	{
-		fprintf(stderr, "ERROR def_X. X has to be between 0 9 ");
-		return -1;
 	}
-	else
+	for(int i = 0; i < 50;i++)putchar(help[i]);
+	for(int i = 0; i<MAX_COMMAND_SIZE;i++)
 	{
-		for(int i = 0; i<MAX_COMMAND_SIZE;i++)
-		{
-			temp_vars[tempo_var_num][i] = help[i];
-			if(help[i] == '\0')
-				break;
-		}
+		temp_vars[tempo_var_num][i] = help[i];
+		if(help[i] == '\0')
+			break;
 	}
 	return 1;
 }
@@ -658,8 +759,48 @@ int temp_set(int row_to, int cell_to, int *temp_10)
 	temp_10[0] = row_to;
 	temp_10[1] = cell_to;
 	return 1;
+
 }
-//TODO int temp_use()
+/*
+Tempo variable ll be used and set to some cell 
+use _X
+
+*/
+int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator)
+{
+	int tempo_var_num = 0;
+	char help_num[1];
+	int temp_size = 0;
+	char help[TEMPO_VARS_LENGHT];
+	int size = 0;
+
+
+	if(isdigit(single_command[NUMBER_IS_LOCATED]) != 0)
+	{
+		help_num[0] = single_command[NUMBER_IS_LOCATED];
+		tempo_var_num = atoi(help_num);
+	}
+	else
+	{
+		fprintf(stderr, "ERROR bad syntax of command def_X. X has to be number ");
+		return -1;
+	}
+
+	for(int i = 0; i < TEMPO_VARS_LENGHT;i++)
+	{
+		size++;
+		help[i] = tempo_vars[tempo_var_num][i];
+		if(tempo_vars[tempo_var_num][i] == '\0')
+			break;
+
+	}
+
+	sheet_row_realoc(sheet, row, size);
+	dellete_cell_value(sheet,row,cell,separator);
+	row_move_right(sheet, row, cell+1, temp_size, separator);
+	change_cell_value(sheet,row,cell,separator, help, size);
+	
+}
 //TODO int temp_int()
 
 /*if it found command for temporarily variables it call it ll be executed*/
@@ -676,7 +817,9 @@ int temp_edit(row *sheet, char *single_command, int *row_from, int *row_to, int 
 	}
 	if(strstr(single_command, "use _") != NULL)  // use _X
 	{
-			return 1;
+		temp_use(sheet,single_command, *row_to, *cell_to, tempo_vars, separator);
+
+		return 1;
 	}
 	if(strstr(single_command, "int _") != NULL)  // inx _X
 	{
@@ -969,7 +1112,7 @@ int count_rows_lenght(char **argv, int row_counter, int is_there_separator, int 
 //So file name has to be on argv[5] or argv[3]
 int input_error(int argc)
 {
-	if((argc != 5) && (argc != 3))
+	if((argc != ARGUMENT_SUM_POSIBILITY_ONE) && (argc != ARGUMENT_SUM_POSIBILITY_TWO))
 	{
 		fprintf(stderr, "BAD ARGUMENT FORMAT \n./sps [-d DELIM] CMD_SEQUENCE FILE\n");
 		return -1;
