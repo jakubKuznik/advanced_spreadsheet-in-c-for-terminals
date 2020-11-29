@@ -87,11 +87,11 @@ int store_one_command(char *single_command, char *commands, int *last_command, i
 int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int *row_counter, int *temp_10);
 
 /*These commands are for sheet table edit.*/
-int sheet_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int *row_counter);
+int sheet_edit(row *sheet, char *single_command, int *row_to, int *cell_to, char separator, int *row_counter);
 //It ll put rows up the choosen rows OR It ll put rows under the choosen rows.
 int s_e_irow_arow(row *sheet,int row, char separator, int *row_counter, int irow_arow);
 //It delete choosen rows. 
-int s_e_drow(row *sheet, int row, char separator, int *row_counter);
+int s_e_drow(row *sheet, int row, int *row_counter);
 //It ll add column right from every chosen cell OR It ll add column left from every chosen cell. 
 int s_e_icol_acol(row *sheet,int cell, char separator, int *row_counter,int icol_acol);
 //It ll delete every chosen column.
@@ -99,7 +99,7 @@ int s_e_dcol(row *sheet, int cell, char separator, int *row_counter);
 
 
 /*these command are for temporarily variables */
-int temp_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT],int *temp_10, char separator );
+int temp_edit(row *sheet, char *single_command, int *row_to, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT],int *temp_10, char separator );
 /*Actual cell ll be stored to X_10 temporarily var that is reserved for selections */
 int temp_set(int row_to, int cell_to, int *temp_10);
 int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
@@ -108,12 +108,13 @@ int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_var
 /*these commands are for selection change */
 int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10);
 //This funciton is called if i know that selection has format [R,C] or [R1,R2,C1,C2]
-int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10);
+int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int row_counter, int *temp_10);
+int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_countert);
 //it ll find smallest num or bigest num in selection 
 int select_min_max(row *sheet, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int operation);
 int select_find(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator );
 
-
+//int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character);
 
 
 
@@ -128,7 +129,7 @@ int count_rows_lenght(char **argv, int row_counter, int is_there_separator, int 
 //FUNCTIONS FOR SHEET MEMORY ALOCATION 
 void initialize_sheet(row *sheet, int row_counter);
 int alocate_sheet(row *sheet, int row_counter, int *rows_lenght);
-int store_sheet(row *sheet, char **argv, int row_counter, int is_there_separator, int *rows_lenght);
+int store_sheet(row *sheet, char **argv, int is_there_separator, int *rows_lenght);
 void free_sheet(row *sheet, int rows);
 void end_print_sheet(row *sheet, int row_counter);
 int count_cells_in_row(int i, row *sheet, char separator, int y_n);
@@ -183,7 +184,7 @@ int main(int argc, char **argv)
 	errors = alocate_sheet(sheet, row_counter, rows_lenght);
 	if(errors != 0) return -1;
 
-	errors = store_sheet(sheet, argv, row_counter, is_there_separator, rows_lenght);
+	errors = store_sheet(sheet, argv, is_there_separator, rows_lenght);
 	if(errors != 0) return -1;
 	
 	for(int i = 0; i<row_counter; i++)
@@ -237,8 +238,8 @@ int row_move_right(row *sheet, int row, int cell, int space, char separator)
 			break;
 		k++;
 	}
-
 	free(help);
+	return 0;
 }
 //TODO
 /*
@@ -349,7 +350,7 @@ int s_e_irow_arow(row *sheet, int row, char separator, int *row_counter, int iro
 /*
 It delete choosen rows. 
 */
-int s_e_drow(row *sheet, int row, char separator, int *row_counter)
+int s_e_drow(row *sheet, int row, int *row_counter)
 {
 	sheet[row-1].row_size = 0;
 	sheet[row-1].one_row = NULL;
@@ -407,14 +408,14 @@ int s_e_dcol(row *sheet, int cell, char separator, int *row_counter)
 }
 /*if it found data sturctu command it call it ll be executed*/
 //error = -1 bad syntax; 0 = command not found; 1 = command_executed 
-int sheet_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int *row_counter)
+int sheet_edit(row *sheet, char *single_command, int *row_to, int *cell_to, char separator, int *row_counter)
 {
 	if(strcmp(single_command, "irow")==0) 
 		return s_e_irow_arow(sheet, *row_to, separator, row_counter, 1);
 	else if(strcmp(single_command, "arow")==0) 
 		return s_e_irow_arow(sheet, *row_to,separator, row_counter, 2);
 	else if(strcmp(single_command, "drow")==0) 
-		return s_e_drow(sheet,*row_to, separator, row_counter);
+		return s_e_drow(sheet,*row_to, row_counter);
 	else if(strcmp(single_command, "icol")==0) 
 		return s_e_icol_acol(sheet, *cell_to, separator, row_counter, 1);
 	else if(strcmp(single_command, "acol")==0) 
@@ -428,7 +429,7 @@ i call this function when i know that selection ll have this format
 TYPE1		TYPE2
 [R,C] || [R1,R2,C1,C2]
 */
-int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_counter, int *temp_10)
+int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_counter)
 {
 	int j = 1, k=0;
 	char num1[MAX_COMMAND_SIZE], num2[MAX_COMMAND_SIZE], num3[MAX_COMMAND_SIZE], num4[MAX_COMMAND_SIZE];
@@ -444,7 +445,7 @@ int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *
 		}
 		else  // [R,_]  or [R,C]
 		{
-			for(j; isdigit(single_command[j]) != 0;j++)
+			for(; isdigit(single_command[j]) != 0;j++)
 				num1[k++] = single_command[j];				
 			*h_rt = *h_rf = atoi(num1);
 			k = 0;
@@ -464,7 +465,7 @@ int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *
 	}
 	else  //[R1,R2,R3,R4]
 	{
-		for(j; isdigit(single_command[j]) != 0; j++)
+		for(; isdigit(single_command[j]) != 0; j++)
 			num1[k++] = single_command[j];
 		k = 0;
 		for(j = j+1; isdigit(single_command[j]) != 0; j++)
@@ -526,6 +527,7 @@ int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
 			break;
 	}
 	store[k] = '\0';
+	return 0;
 }
 /*
 it ll find cell where is a biggest or smalest number in selection and them it ll change selection to that cell
@@ -611,12 +613,10 @@ it ll change table select
 If the select is bigger them table it ll make it bigerr 
 [R,C], [R1,R2,C1,C2],[_,C], [_,_], [min], [max], [find STR], [_]
 */
-int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10)
+int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int row_counter, int *temp_10)
 {
-	int j = 1, k = 0;
 	int commas = 0;
 	// i ll store numbers to this arrays and them parse it to numbers 
-	char num1[MAX_COMMAND_SIZE], num2[MAX_COMMAND_SIZE], num3[MAX_COMMAND_SIZE], num4[MAX_COMMAND_SIZE];
 	bool command_executed = false;
 	int h_rf = *row_from, h_rt = *row_to, h_cf = *cell_from, h_ct = *cell_to;   //h mean help 
 
@@ -657,12 +657,12 @@ int select_change_simplify(row *sheet, char *single_command, int *row_from, int 
 		
 		if(commas == 1) //[R,C]
 		{
-			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 1, sheet, row_counter, temp_10) == 1) 
+			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 1, sheet, row_counter ) == 1) 
 				command_executed = true;
 		}
 		else if(commas == 3)   //[R1,R2,C1,C2]
 		{
-			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 2, sheet, row_counter, temp_10) == 1)
+			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 2, sheet, row_counter) == 1)
 				command_executed = true;
 		}
 		else
@@ -706,7 +706,7 @@ int select_change(row *sheet, char *single_command, int *row_from, int *row_to, 
 	{
 		if(last_character == ']')
 		{
-			select_change_simplify(sheet, single_command, row_from, row_to, cell_from, cell_to, last_character, separator,row_counter, temp_10);
+			select_change_simplify(sheet, single_command, row_from, row_to, cell_from, cell_to, separator,row_counter, temp_10);
 			return 1;		
 		}	
 		else
@@ -727,6 +727,7 @@ int change_cell_value(row *sheet, int row, int cell, char separator, char *value
 		position = position +1 ;
 	
 	}
+	return 0;
 
 }
 int dellete_cell_value(row *sheet, int row, int cell, char separator)
@@ -738,7 +739,8 @@ int dellete_cell_value(row *sheet, int row, int cell, char separator)
 }
 
 /*if it found command for editing sheet content it call it ll be executed*/
-int call_content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character)
+/*
+int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character)
 {
 	if(strstr(single_command, "set") != NULL)  //set STR 
 	{
@@ -830,6 +832,7 @@ int call_content_edit(row *sheet, char *single_command, int *row_from, int *row_
 	}
 	return 0;
 }
+*/
 /*Value of cell ll be stored to temp var _X. X can be num 0 9
 def _X 
 */
@@ -838,7 +841,6 @@ int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars
 
 	char help[MAX_COMMAND_SIZE];
 	array_char_init(help,MAX_COMMAND_SIZE);
-	int l = 0;
 	char help_num[1];
 	help_num[0] = 0;
 	int tempo_var_num = 0;
@@ -909,12 +911,13 @@ int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_var
 	dellete_cell_value(sheet,row,cell,separator);
 	row_move_right(sheet, row, cell+1, temp_size, separator);
 	change_cell_value(sheet,row,cell,separator, help, size);
+	return 1;
 	
 }
 //TODO int temp_int()
 
 /*if it found command for temporarily variables it call it ll be executed*/
-int temp_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT],int *temp_10, char separator)
+int temp_edit(row *sheet, char *single_command, int *row_to, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT],int *temp_10, char separator)
 {
 	if(strstr(single_command, "[set]") != NULL)  //[set]
 		return temp_set(*row_to, *cell_to, temp_10);
@@ -945,13 +948,11 @@ This function ll get one command and execute it
 int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int *row_counter, int *temp_10)
 {
 	//TODO [11_51]  = char1 == 11 
-	char hellper = NULL;
-	int commas_in_command = 0;
 	char last_char = get_last_char(single_command);
 	int error = 0;
 
 	//error = -1 bad syntax; 0 = command not found; 1 = command_executed 
-	error = sheet_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, separator, row_counter);
+	error = sheet_edit(sheet, single_command, row_to, cell_to, separator, row_counter);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
@@ -963,13 +964,13 @@ int call_command(row *sheet, char *single_command, int *row_from, int *row_to, i
 	else if(error == 1)
 		return 0;
 
-	error = call_content_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char);
+//	error = content_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
 		return 0;	
 	
-	error = temp_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, tempo_vars, temp_10, separator);
+	error = temp_edit(sheet, single_command, row_to, cell_to, tempo_vars, temp_10, separator);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
@@ -992,7 +993,7 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 	char tempo_vars[TEMPO_VARS_MAX][MAX_COMMAND_SIZE];
 
 
-	for(last_command; last_command<=commands_sum;)
+	for(;last_command <= commands_sum;)
 	{
 		store_one_command(single_command, commands, &last_command, commands_char_sum);
 		error = call_command(sheet, single_command, &row_from, &row_to, &cell_from, &cell_to, tempo_vars, separator, row_counter, temp_10);
@@ -1138,12 +1139,11 @@ int alocate_sheet(row *sheet, int row_counter, int *rows_lenght)
 }
 
 /*This function ll not only alocate memmory but also safe input file to data structure */
-int store_sheet(row *sheet, char **argv, int row_counter, int is_there_separator, int *rows_lenght)
+int store_sheet(row *sheet, char **argv, int is_there_separator, int *rows_lenght)
 {
 	int j = 0, k = 0;
 	int c;
 	FILE *sheet_file;
-	int errors = 0;
 
 	if(is_there_separator == 1)sheet_file = fopen(argv[4], "r+"); else sheet_file = fopen(argv[2], "r+");
 
@@ -1188,7 +1188,7 @@ void array_int_init(int size, int *array)
 int count_rows_lenght(char **argv, int row_counter, int is_there_separator, int *rows_lenght)
 {
 	FILE *sheet_file;
-	int c, error = 0, i = 0;
+	int c, i = 0;
 	
 	if(is_there_separator == 1)	sheet_file = fopen(argv[4], "r+"); else sheet_file = fopen(argv[2], "r+");
 	if(sheet_file == NULL)
