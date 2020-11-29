@@ -80,14 +80,27 @@ typedef struct
 int commands_error_check(char **argv, int is_there_separator, int *count_chars, int *count_commands);
 void store_commands(char **argv, int is_there_separator, char *commands, int command_char_sum);
 /*This function ll find out what command to do and call the functions */
-int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet, int row_counter);
+int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet, int *row_counter);
 //This function just story one command that ll be executed 
 int store_one_command(char *single_command, char *commands, int *last_command, int commands_char_sum);
 /*this ll call command and them it ll be executed */
-int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int row_counter, int *tempo_10);
+int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int *row_counter, int *temp_10);
 
 /*These commands are for sheet table edit.*/
-int data_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to);
+int sheet_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int *row_counter);
+//It ll put rows up the choosen rows.
+int s_e_irow(row *sheet,int row, char separator, int *row_counter);
+//It ll put rows under the choosen rows.
+int s_e_arow(row *sheet, int row_from, int row_to, char separator, int *row_counter);
+//It delete choosen rows. 
+int s_e_drow(row *sheet, int row_from, int row_to, char separator, int *row_counter);
+//It ll add column right from every chosen cell. 
+int s_e_icol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter);
+//It ll add column left from every chosen cell. 
+int s_e_acol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter);
+//It ll delete every chosen column.
+int s_e_dcol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter);
+
 
 /*these command are for temporarily variables */
 int temp_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT],int *temp_10, char separator );
@@ -97,9 +110,9 @@ int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars
 int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
 
 /*these commands are for selection change */
-int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter);
+int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10);
 //This funciton is called if i know that selection has format [R,C] or [R1,R2,C1,C2]
-int select_change_simplyfy(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter);
+int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10);
 //it ll find smallest num or bigest num in selection 
 int select_min_max(row *sheet, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int operation);
 int select_find(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator );
@@ -182,7 +195,7 @@ int main(int argc, char **argv)
 
 	char commands[commands_char_sum+2]; //here i ll store all the commands that ll be executed on sheet 
 	store_commands(argv, is_there_separator, commands, commands_char_sum);
-	errors = command_execution(commands_sum, commands, commands_char_sum, d_separator, sheet, row_counter);
+	errors = command_execution(commands_sum, commands, commands_char_sum, d_separator, sheet, &row_counter);
 	if(errors != 0) return -1;
 
 	//printing editet sheet and free memory 
@@ -284,12 +297,91 @@ int get_array_size(char *array, int max_size)
 			break;
 	return size;
 }
+//This fun can be used if u want to move all rows in indexation right 
+int move_rows_by_one(row *sheet, int row, int *row_counter)
+{
+    char *phelp = NULL;
+	phelp = sheet[*row_counter-1].one_row;
+	int help_row_size = sheet[*row_counter-1].row_size; 
+	int help_cels_in_row = sheet[*row_counter-1].cels_in_row; 	
+	
+	for(int i = *row_counter; i > row;i--)
+	{
+		sheet[i].cels_in_row = help_cels_in_row;
+		sheet[i].one_row = phelp;
+		sheet[i].row_size = help_row_size;
+
+		phelp = sheet[i-2].one_row;
+		help_row_size = sheet[i-2].row_size;
+		help_cels_in_row = sheet[i-2].cels_in_row;
+	}
+	*row_counter = *row_counter + 1;
+	return 0;
+}
+/*
+It ll put row up the choosen rows.
+*/
+int s_e_irow(row *sheet, int row, char separator, int *row_counter)
+{
+	int i = 0;
+	int help = sheet[0].cels_in_row;
+	row = row-1;
+	move_rows_by_one(sheet, row, row_counter);
+	
+	sheet[row].row_size = help +10 ;
+	sheet[row].one_row = malloc((help+10) * sizeof(char));
+	sheet[row].cels_in_row = help;
+
+	for(; i<help;i++)
+		sheet[row].one_row[i] = separator;
+	sheet[row].one_row[i+1] = '\n';
+
+	return 1;
+}
+/*
+It ll put row under the choosen row.
+*/
+int s_e_arow(row *sheet, int row_from, int row_to, char separator, int *row_counter)
+{
+
+}
+/*
+It delete choosen rows. 
+*/
+int s_e_drow(row *sheet, int row_from, int row_to, char separator, int *row_counter)
+{
+
+}
+/*
+It ll add column right from every chosen cell. 
+*/
+int s_e_icol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter)
+{
+
+}
+/*
+It ll add column left from every chosen cell. 
+*/
+int s_e_acol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter)
+{
+
+}
+/*
+It ll delete every chosen column.
+*/
+int s_e_dcol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter)
+{
+
+}
+
 /*if it found data sturctu command it call it ll be executed*/
 //error = -1 bad syntax; 0 = command not found; 1 = command_executed 
-int data_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to)
+int sheet_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int *row_counter)
 {
 	if(strcmp(single_command, "irow")==0) 
 	{
+		printf("%d",*row_counter);
+		s_e_irow(sheet, *row_to, separator, row_counter);
 		return 1;
 	}
 	else if(strcmp(single_command, "arow")==0) 
@@ -319,7 +411,7 @@ i call this function when i know that selection ll have this format
 TYPE1		TYPE2
 [R,C] || [R1,R2,C1,C2]
 */
-int selection_changer_simplyfy(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_counter)
+int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_counter, int *temp_10)
 {
 	int j = 1, k=0;
 	char num1[MAX_COMMAND_SIZE], num2[MAX_COMMAND_SIZE], num3[MAX_COMMAND_SIZE], num4[MAX_COMMAND_SIZE];
@@ -502,7 +594,7 @@ it ll change table select
 If the select is bigger them table it ll make it bigerr 
 [R,C], [R1,R2,C1,C2],[_,C], [_,_], [min], [max], [find STR], [_]
 */
-int select_change_simplyfy(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter)
+int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10)
 {
 	int j = 1, k = 0;
 	int commas = 0;
@@ -531,7 +623,8 @@ int select_change_simplyfy(row *sheet, char *single_command, int *row_from, int 
 	}
 	else if(strcmp(single_command, "[_]")== 0)  //[_]
 	{
-		//TODO it restore select from 	
+		h_rf = h_rt = temp_10[0];
+		h_cf = h_ct = temp_10[1];
 		command_executed = true;
 	}
 	else if(strstr(single_command, "[find") != NULL) //
@@ -547,12 +640,12 @@ int select_change_simplyfy(row *sheet, char *single_command, int *row_from, int 
 		
 		if(commas == 1) //[R,C]
 		{
-			if(selection_changer_simplyfy(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 1, sheet, row_counter) == 1) 
+			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 1, sheet, row_counter, temp_10) == 1) 
 				command_executed = true;
 		}
 		else if(commas == 3)   //[R1,R2,C1,C2]
 		{
-			if(selection_changer_simplyfy(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 2, sheet, row_counter) == 1)
+			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 2, sheet, row_counter, temp_10) == 1)
 				command_executed = true;
 		}
 		else
@@ -587,7 +680,7 @@ int select_change_simplyfy(row *sheet, char *single_command, int *row_from, int 
 }
 
 /*if it found selection command it call it ll be executed*/
-int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter)
+int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10)
 {
 	if(strcmp(single_command, "[set]") == 0)  //[set]
 		return 0;
@@ -596,7 +689,7 @@ int select_change(row *sheet, char *single_command, int *row_from, int *row_to, 
 	{
 		if(last_character == ']')
 		{
-			select_change_simplyfy(sheet, single_command, row_from, row_to, cell_from, cell_to, last_character, separator,row_counter);
+			select_change_simplify(sheet, single_command, row_from, row_to, cell_from, cell_to, last_character, separator,row_counter, temp_10);
 			return 1;		
 		}	
 		else
@@ -832,7 +925,7 @@ int temp_edit(row *sheet, char *single_command, int *row_from, int *row_to, int 
 /*
 This function ll get one command and execute it 
 */
-int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int row_counter, int *temp_10)
+int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int *row_counter, int *temp_10)
 {
 	//TODO [11_51]  = char1 == 11 
 	char hellper = NULL;
@@ -841,13 +934,13 @@ int call_command(row *sheet, char *single_command, int *row_from, int *row_to, i
 	int error = 0;
 
 	//error = -1 bad syntax; 0 = command not found; 1 = command_executed 
-	error = data_edit(sheet, single_command, row_from, row_to, cell_from, cell_to);
+	error = sheet_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, separator, row_counter);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
 		return 0;
 
-	error = select_change(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator, row_counter);
+	error = select_change(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator, *row_counter, temp_10);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
@@ -869,7 +962,7 @@ int call_command(row *sheet, char *single_command, int *row_from, int *row_to, i
 	return 0 ;
 }
 /*This function ll find out what command to do and call the functions*/ 
-int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet, int row_counter)
+int command_execution(int commands_sum, char *commands, int commands_char_sum, int separator, row *sheet, int *row_counter)
 {
 	char single_command[1000]; //max str that u can write to table is 1000 becouse max command size is 1000
 	int last_command = 0;
