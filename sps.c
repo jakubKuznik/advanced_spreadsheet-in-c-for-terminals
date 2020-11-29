@@ -92,12 +92,10 @@ int sheet_edit(row *sheet, char *single_command, int *row_from, int *row_to, int
 int s_e_irow_arow(row *sheet,int row, char separator, int *row_counter, int irow_arow);
 //It delete choosen rows. 
 int s_e_drow(row *sheet, int row, char separator, int *row_counter);
-//It ll add column right from every chosen cell. 
-int s_e_icol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter);
-//It ll add column left from every chosen cell. 
-int s_e_acol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter);
+//It ll add column right from every chosen cell OR It ll add column left from every chosen cell. 
+int s_e_icol_acol(row *sheet,int cell, char separator, int *row_counter,int icol_acol);
 //It ll delete every chosen column.
-int s_e_dcol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter);
+int s_e_dcol(row *sheet, int cell, char separator, int *row_counter);
 
 
 /*these command are for temporarily variables */
@@ -215,30 +213,26 @@ int row_move_right(row *sheet, int row, int cell, int space, char separator)
 	int k = 0;
 	char *help = NULL;
 	int position =0;
-	position = get_cell_position(sheet, row+1, cell+1, separator) ;
 
+	position = get_cell_position(sheet, row+1, cell+1, separator);
 	help = malloc((sheet[row].row_size + space) *sizeof(char));
+	sheet[row].row_size = sheet[row].row_size + space;
+
 	if(help == NULL)
 	{
 		fprintf(stderr, "ERROR malloc failed \n");
 		return -1;
 	}
-	for(int i = position-2; i < sheet[row].row_size + space; i++)
+	for(int i = position; i < sheet[row].row_size;  i++)
 	{
 		help[k++] = sheet[row].one_row[i];
 		if(sheet[row].one_row[i] == '\n')
 			break;
 	}
-
-	for(int i =0;i < k;i++ )
-	{
-		putchar(help[i]);
-	}
-
 	k = 0;
-	for(int i = position + space; i < sheet[row].row_size + space ;i++)
+	for(int i = position + space; i < sheet[row].row_size ;i++)
 	{
-		sheet[row].one_row[i] = help[k];
+		sheet[row].one_row[i-1] = help[k];
 		if(help[k] == '\n')
 			break;
 		k++;
@@ -365,26 +359,52 @@ int s_e_drow(row *sheet, int row, char separator, int *row_counter)
 }
 /*
 It ll add column right from every chosen cell. 
-*/
-int s_e_icol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter)
-{
-
-}
-/*
 It ll add column left from every chosen cell. 
+icol = 1
+acol = 2
 */
-int s_e_acol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter)
+int s_e_icol_acol(row *sheet,int cell, char separator, int *row_counter,int icol_acol)
 {
+	if(icol_acol == 1)
+		cell--;
 
+	int position = 0;
+	for(int i = 0; i < *row_counter;i++)
+	{
+		row_move_right(sheet,i+1, cell+1, 2, separator);
+		
+		position = get_cell_position(sheet, i+1, cell+1, separator);		
+		sheet[i].one_row[position] = separator;
+		sheet[i].cels_in_row = sheet[i].cels_in_row + 1;
+	}
+
+	return 1;
 }
 /*
 It ll delete every chosen column.
 */
-int s_e_dcol(row *sheet, int cell_from, int cell_to, char separator, int *row_counter)
+int s_e_dcol(row *sheet, int cell, char separator, int *row_counter)
 {
-
+	int position = 0;
+	for(int i = 0; i < *row_counter;i++)
+	{
+		position = get_cell_position(sheet, i+1, cell, separator);		
+		for(int j = position; j < sheet[i].row_size;j++)
+		{
+			if(sheet[i].one_row[j] == separator)	
+				if(sheet[i].one_row[j-1] != '\\')
+				{
+					sheet[i].one_row[j] = '\0';	
+					break;
+				}
+			if(sheet[i].one_row[j] == '\n')
+				break;
+			sheet[i].one_row[j] = '\0';	
+		}
+		sheet[i].cels_in_row = sheet[i].cels_in_row -1;
+	}
+	return 1;
 }
-
 /*if it found data sturctu command it call it ll be executed*/
 //error = -1 bad syntax; 0 = command not found; 1 = command_executed 
 int sheet_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int *row_counter)
@@ -396,17 +416,11 @@ int sheet_edit(row *sheet, char *single_command, int *row_from, int *row_to, int
 	else if(strcmp(single_command, "drow")==0) 
 		return s_e_drow(sheet,*row_to, separator, row_counter);
 	else if(strcmp(single_command, "icol")==0) 
-	{
-		return 1;
-	}
+		return s_e_icol_acol(sheet, *cell_to, separator, row_counter, 1);
 	else if(strcmp(single_command, "acol")==0) 
-	{
-		return 1;
-	}
+		return s_e_icol_acol(sheet, *cell_to, separator, row_counter, 2);
 	else if(strcmp(single_command, "dcol")==0) 
-	{
-		return 1;
-	}
+		return s_e_dcol(sheet, *cell_to, separator, row_counter);
 	return  0;
 }
 /*
