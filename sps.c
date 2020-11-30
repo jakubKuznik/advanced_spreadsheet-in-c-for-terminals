@@ -34,7 +34,7 @@ SHEET CONTENT EDITING COMMANDS
 set STR - nastaví hodnotu buňky na řetězec STR. Řetězec STR může být ohraničen uvozovkami a může obsahovat speciální znaky uvozené lomítkem (viz formát tabulky)
 clear - obsah vybraných buněk bude odstraněn (buňky budou mít prázdný obsah)
 swap [R,C] - vymění obsah vybrané buňky s buňkou na řádku R a sloupci C
-sum [R,C] - do buňky na řádku R a sloupci C uloží součet hodnot vybraných buněk (odpovídající formátu %g u printf). Vybrané buňky neobsahující číslo budou ignorovány (jako by vybrány nebyly).
+sum [R,C] - do buňky na řádku R a sloupci C uloží součet hodnot vybraných buněk (odpovídající formátu %g u ;printf). Vybrané buňky neobsahující číslo budou ignorovány (jako by vybrány nebyly).
 avg [R,C] - stejné jako sum, ale ukládá se aritmetický průměr z vybraných buněk
 count [R,C] - stejné jako sum, ale ukládá se počet neprázdných buněk z vybraných buněk
 len [R,C] - do buňky na řádku R a sloupci C uloží délku řetězce aktuálně vybrané buňky
@@ -65,6 +65,7 @@ inc _X - numerická hodnota v dočasné proměnné bude zvětšena o 1. Pokud do
 #define BRACKET_POSITION 5   // swap [R,C]
 #define ARGUMENT_SUM_POSIBILITY_ONE 5
 #define ARGUMENT_SUM_POSIBILITY_TWO 3
+#define STRING_START_POSITION 4 //set STR
 
 typedef struct 
 {
@@ -106,16 +107,17 @@ int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars
 int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
 
 /*these commands are for selection change */
-int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10);
+int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int *row_counter, int *temp_10);
 //This funciton is called if i know that selection has format [R,C] or [R1,R2,C1,C2]
-int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int row_counter, int *temp_10);
-int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_countert);
+int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int *row_counter, int *temp_10);
+int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *h_cf, int *h_ct, int type, row *sheet, int row_counter);
 //it ll find smallest num or bigest num in selection 
 int select_min_max(row *sheet, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int operation);
 int select_find(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator );
 
-//int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character);
-
+/*These are for editing sheet content */
+int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator);
+int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t, char separator);
 
 
 //THIS ARE BEING DONE ON BEGING TO CHECK ARGUMENTS FORMAT AND STORE SEPARATOR 
@@ -336,7 +338,11 @@ int s_e_irow_arow(row *sheet, int row, char separator, int *row_counter, int iro
 	if(irow_arow == 2)
 		row = row+1;
 	move_rows_down(sheet, row, row_counter);
-	
+
+	sheet[row].row_size = 0;
+	sheet[row].one_row = NULL;
+	sheet[row].cels_in_row = 0;
+
 	sheet[row].row_size = help +10 ;
 	sheet[row].one_row = malloc((help+10) * sizeof(char));
 	sheet[row].cels_in_row = help;
@@ -372,9 +378,11 @@ int s_e_icol_acol(row *sheet,int cell, char separator, int *row_counter,int icol
 	int position = 0;
 	for(int i = 0; i < *row_counter;i++)
 	{
-		row_move_right(sheet,i+1, cell+1, 2, separator);
-		
+		if(cell != sheet[i].cels_in_row)
+			row_move_right(sheet,i+1, cell+1, 2, separator);
 		position = get_cell_position(sheet, i+1, cell+1, separator);		
+		printf("%d  ",position);
+		
 		sheet[i].one_row[position] = separator;
 		sheet[i].cels_in_row = sheet[i].cels_in_row + 1;
 	}
@@ -477,8 +485,8 @@ int selection_changer_simplify(char *single_command, int *h_rf, int *h_rt, int *
 		for(j = j+1; isdigit(single_command[j]) != 0; j++)
 			num4[k++] = single_command[j];
 		*h_rf = atoi(num1);
-		*h_rt = atoi(num2);
-		*h_cf = atoi(num3);
+		*h_cf = atoi(num2);
+		*h_rt = atoi(num3);
 		*h_ct = atoi(num4);
 		return 1;
 	}
@@ -499,8 +507,17 @@ if u want row 1 teel function row 1 it ll automaticly find row[0]
 int get_cell_position(row *sheet, int row, int cell, char separator)
 {
 	int counter_separator = 0;
+	int i = 0;
 	if(cell == 1)
 		return 0;
+	if(cell == sheet[0].cels_in_row +1)
+	{
+	    for(; sheet[row-1].one_row[i] != '\n';)
+			i++;
+		return i-1;
+	}		
+
+
 	for(int i = 0; i<=sheet[row-1].row_size;i++)
 		if(sheet[row-1].one_row[i] == separator && sheet[row-1].one_row[i-1] != '\\')
 		{
@@ -613,7 +630,7 @@ it ll change table select
 If the select is bigger them table it ll make it bigerr 
 [R,C], [R1,R2,C1,C2],[_,C], [_,_], [min], [max], [find STR], [_]
 */
-int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int row_counter, int *temp_10)
+int select_change_simplify(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator, int *row_counter, int *temp_10)
 {
 	int commas = 0;
 	// i ll store numbers to this arrays and them parse it to numbers 
@@ -623,7 +640,7 @@ int select_change_simplify(row *sheet, char *single_command, int *row_from, int 
 	if(strcmp(single_command, "[_,_]")==0)  //[_,_] //all table select 
 	{
 		h_rf = 1;
-		h_rt = row_counter;
+		h_rt = *row_counter;
 		h_cf = 1;
 		h_ct = sheet[0].cels_in_row + 1;
 		command_executed = true;
@@ -657,12 +674,12 @@ int select_change_simplify(row *sheet, char *single_command, int *row_from, int 
 		
 		if(commas == 1) //[R,C]
 		{
-			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 1, sheet, row_counter ) == 1) 
+			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 1, sheet, *row_counter ) == 1) 
 				command_executed = true;
 		}
 		else if(commas == 3)   //[R1,R2,C1,C2]
 		{
-			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 2, sheet, row_counter) == 1)
+			if(selection_changer_simplify(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 2, sheet, *row_counter) == 1)
 				command_executed = true;
 		}
 		else
@@ -677,19 +694,28 @@ int select_change_simplify(row *sheet, char *single_command, int *row_from, int 
 		printf("old %d %d %d %d",*row_from, *row_to, *cell_from, *cell_to);
 		printf("___new %d %d %d %d \n",h_rf, h_rt, h_cf, h_ct);
 
-		if(h_rt > row_counter)
-		{				
-			printf("                  it has to be resized ");
+		if(h_rt > *row_counter)
+		{	
+			for(int help = *row_counter;help <= h_rf-1;help++)
+				s_e_irow_arow(sheet, help, separator, row_counter, 2);
 		}
-		if(h_ct > sheet[0].cels_in_row + 1)
-		{
+		if(h_ct > sheet[0].cels_in_row)
+		{				
+			s_e_icol_acol(sheet, sheet[0].cels_in_row, separator, row_counter, 2);
+
+			/*
+			for(int i = sheet[0].cels_in_row+1; i <= h_cf -1; i++)
+				s_e_icol_acol(sheet, i, separator, row_counter, 2);
+			*/
 			printf("                  it has to be resized ");
+			printf("???%d<<",sheet[0].cels_in_row);
 		}
 
 		*row_from = h_rf;
 		*row_to = h_rt;
 		*cell_from = h_cf;
 		*cell_to = h_ct;
+		printf("%d",*row_counter);
 
 		return 1;	
 	}
@@ -697,7 +723,7 @@ int select_change_simplify(row *sheet, char *single_command, int *row_from, int 
 }
 
 /*if it found selection command it call it ll be executed*/
-int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter, int *temp_10)
+int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int *row_counter, int *temp_10)
 {
 	if(strcmp(single_command, "[set]") == 0)  //[set]
 		return 0;
@@ -733,21 +759,86 @@ int change_cell_value(row *sheet, int row, int cell, char separator, char *value
 int dellete_cell_value(row *sheet, int row, int cell, char separator)
 {
 	int position = get_cell_position(sheet, row, cell, separator);
-	for(int i = position; sheet[row-1].one_row[i] != separator && sheet[row-1].one_row[i] != '\n';i++)
+	int i = position;
+	for(; sheet[row-1].one_row[i] != separator && sheet[row-1].one_row[i] != '\n';i++)
+		sheet[row-1].one_row[i] = '\0';
+
+	i++;
+	if(cell == sheet[0].cels_in_row && row == 1)
+		sheet[row-1].one_row[i-1] = '\0';
+	else if(cell == sheet[0].cels_in_row)
 		sheet[row-1].one_row[i] = '\0';
 	return 0;
 }
+/*
+set STR 
+just set choosen cells content to STR 
+*/
+int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t, char separator)
+{
+	char help[MAX_COMMAND_SIZE];
+	int position = 0;
+	int str_size = 0;
+	int x = 0;
+	for(int i = STRING_START_POSITION; single_command[i] != '\0';i++)
+	{
+		help[x++] = single_command[i];
+		str_size++;
+	}
+	str_size++;
+	x++;
+	help[x] = '\0';
+	for(int j = r_f; j <= r_t; j++)
+		for(int i = c_f; i <= c_t; i++)
+		{
+			x = 0;
+			position = get_cell_position(sheet, j, i, separator);
+			dellete_cell_value(sheet, j, i, separator);
+			row_move_right(sheet,j, i, str_size, separator);	
+			for(int k = position; k < (position + str_size) ;k++)
+				sheet[j-1].one_row[k] = help[x++];
+		}
+		
+	return 1;
+}
+/*
+int c_e_clear()
+{
+
+}
+int c_e_swap()
+{
+
+}
+int c_e_sum()
+{
+
+}
+int c_e_avg()
+{
+
+}
+int c_e_count()
+{
+
+}
+int c_e_len()
+{
+
+}
+*/
 
 /*if it found command for editing sheet content it call it ll be executed*/
-/*
-int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character)
+int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator)
 {
 	if(strstr(single_command, "set") != NULL)  //set STR 
 	{
-		if(single_command[0] != '[')
-			return 1;
+		if(single_command[0] == '[')
+			return 0;
+		else
+			return c_e_set(sheet, single_command, *row_from, *row_to, *cell_from, *cell_to, separator);
 	}
-	if(strstr(single_command, "clear") != NULL) 
+	if(strstr(single_command, "clear") != NULL) //clear
 		return 1;
 	if(strstr(single_command, "swap") != NULL) //swap [R,C] 
 	{
@@ -832,7 +923,6 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 	}
 	return 0;
 }
-*/
 /*Value of cell ll be stored to temp var _X. X can be num 0 9
 def _X 
 */
@@ -958,13 +1048,13 @@ int call_command(row *sheet, char *single_command, int *row_from, int *row_to, i
 	else if(error == 1)
 		return 0;
 
-	error = select_change(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator, *row_counter, temp_10);
+	error = select_change(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator, row_counter, temp_10);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
 		return 0;
 
-//	error = content_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char);
+	error = content_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
