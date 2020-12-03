@@ -70,6 +70,7 @@ inc _X - numerická hodnota v dočasné proměnné bude zvětšena o 1. Pokud do
 #define NEXT_NUM_POSITION 3
 #define IROW 1
 #define AROW 2
+#define RESERVE 100 //if i want to transfer \separator to ""
 
 typedef struct 
 {
@@ -148,14 +149,14 @@ void end_print_sheet(row *sheet, int row_counter);
 int sheet_row_realoc(row *sheet, int row, int space);
 
 //FUNCTIONS FOR WOKING WITH CELLS 
-int dellete_cell_value(row *sheet, int row, int cell, char separator);
+int delete_cell_value(row *sheet, int row, int cell, char separator);
 int change_cell_value(row *sheet, int row, int cell, char separator, char *value, int size);
 int get_cell_size(row *sheet, char separator, int cell, int row);
 int get_cell_position(row *sheet, int row, int cell, char separator);
 
 //FUNCTIONS FOR EDITING SHEET
 int row_move_right(row *sheet, int row, int cell, int space, char separator);
-void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separator);
+void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separator, char separator);
 
 //FUNCTIONS FOR SIMPLIFICATION 
 void array_int_init(int size, int *array); //This ll initalize int array;
@@ -232,7 +233,7 @@ int main(int argc, char **argv)
 	//printing editet sheet and free memory 
 	
 	//end_print_sheet(sheet, row_counter);
-	rewrite_file(sheet, row_counter, argv, is_there_separator);
+	rewrite_file(sheet, row_counter, argv, is_there_separator, d_separator);
 	
 	
 	free(rows_lenght);
@@ -327,31 +328,38 @@ n = just count them 	0
 int count_cells_in_row(int i, row *sheet, char separator)
 {
 	int cells = 0;
+	bool q_mark = false;
 	for(int j = 0; j < sheet[i].row_size ; j++)
 	{
+		if(sheet[i].one_row[j] == '\"')
+		{
+			if(q_mark == true)
+			{
+				if(sheet[i].one_row[j-1] != '\\')
+					q_mark = false;
+			}
+			else
+			{
+				if(j > 0)
+					if(sheet[i].one_row[j-1] != '\\')
+						q_mark = true;
+			}
+		}
+
 		if(sheet[i].one_row[j] == separator)
 		{
-			cells = cells + 1;
-			if(j > 0)
+			if(q_mark == false)
 			{
-				if(sheet[i].one_row[j-1] == '\\')
+				cells = cells + 1;
+				if(j > 0)
 				{
-					cells--;
-					/*TODO zavorky
-					if(j >= sheet[i].row_size -2)
+					if(sheet[i].one_row[j-1] == '\\')
 					{
-						if(sheet[i].one_row[j-1] != '\"' || sheet[i].one_row[j+1] != '\"')
-							continue;
-						else
-						{
-							cells--;
-						}
-						
+						cells--;
 					}
-					*/
+					else
+						continue;
 				}
-				else
-					continue;
 			}
 		}
 	}
@@ -604,30 +612,48 @@ if u want row 1 teel function row 1 it ll automaticly find row[0]
 */
 int get_cell_position(row *sheet, int row, int cell, char separator)
 {
-
 	int counter_separator = 0;
+	bool q_mark = false;	
+	
 	if(cell == 1)
 		return 0;
 
 	for(int i = 0; i<=sheet[row-1].row_size;i++)
 	{
-		if(sheet[row-1].one_row[i] == separator)
-		{				
-			if(i > 0)
+		if(sheet[row-1].one_row[i] == '\"')
+		{
+			if(q_mark == true)
 			{
 				if(sheet[row-1].one_row[i-1] != '\\')
+					q_mark = false;
+			}
+			else
+			{
+				if(i > 0)
+					if(sheet[row-1].one_row[i-1] != '\\')
+						q_mark = true;
+			}
+		}
+		if(sheet[row-1].one_row[i] == separator)
+		{	
+			if(q_mark == true)
+			{
+				if(i > 0)
+				{
+					if(sheet[row-1].one_row[i-1] != '\\')
+					{
+						counter_separator++;
+						if(counter_separator == cell-1)
+							return i+1;
+					}
+				}
+				else
 				{
 					counter_separator++;
 					if(counter_separator == cell-1)
 						return i+1;
 				}
-			}
-			else
-			{
-				counter_separator++;
-				if(counter_separator == cell-1)
-					return i+1;
-			}
+			}			
 		}
 	}
 	return 0;
@@ -641,8 +667,24 @@ int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
 	int k = 0;
 	int position = 0;
 	position = get_cell_position(sheet, row, cell, separator);
+	bool q_mark = false;
 	for(;position < sheet[row-1].row_size ;position++)
 	{
+		if(sheet[row-1].one_row[position] == '\"')
+		{
+			if(q_mark == true)
+			{
+				if(sheet[position].one_row[position-1] != '\\')
+					q_mark = false;
+			}
+			else
+			{
+				if(position > 0)
+					if(sheet[position].one_row[position-1] != '\\')
+						q_mark = true;
+			}
+		}
+
 		store[k++] = sheet[row-1].one_row[position];
 		if(sheet[row-1].one_row[position] == '\n')
 		{
@@ -650,7 +692,20 @@ int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
             break;
 		}
 		if(sheet[row-1].one_row[position] == separator)
-			break;
+		{
+			if(q_mark == false)
+			{
+				if (position > 0)
+				{
+					if(sheet[row-1].one_row[position-1] != '\\')
+						break;
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
 	}
 	store[k] = '\0';
 	return 0;
@@ -824,7 +879,7 @@ int select_change_simplify(row *sheet, char *single_command, int *row_from, int 
 	//			s_e_irow_arow(sheet, help, separator, row_counter, 2);
 		}
 		if(h_ct > sheet[0].cels_in_row+1)
-		{				
+		{			
 			fprintf(stderr, "It has to be resized ");
 			return -1;
 	//		s_e_icol_acol(sheet, sheet[0].cels_in_row, separator, row_counter, 2);
@@ -868,7 +923,7 @@ int select_change(row *sheet, char *single_command, int *row_from, int *row_to, 
 int change_cell_value(row *sheet, int row, int cell, char separator, char *value,int size)
 {
 	int position = get_cell_position(sheet ,row, cell , separator);
-	dellete_cell_value(sheet, row, cell, separator);
+	delete_cell_value(sheet, row, cell, separator);
 	row_move_right(sheet, row, cell, size, separator);
 
 	for(int i = 0; i < size ;i++)
@@ -882,10 +937,9 @@ int change_cell_value(row *sheet, int row, int cell, char separator, char *value
 	return 0;
 
 }
-int dellete_cell_value(row *sheet, int row, int cell, char separator)
+int delete_cell_value(row *sheet, int row, int cell, char separator)
 {
 	int position = get_cell_position(sheet, row, cell, separator);
-
 
 	// if cell is empty
 	if(sheet[row-1].one_row[position] == separator)
@@ -901,9 +955,37 @@ int dellete_cell_value(row *sheet, int row, int cell, char separator)
 		return 0;
 
 	array_char_init(help, sheet[row-1].row_size);
+/*WORKS without q_makrs
 	for(; sheet[row-1].one_row[i] != separator && sheet[row-1].one_row[i] != '\n';i++)
 		sheet[row-1].one_row[i] = '\0';
-	
+*/
+	bool q_mark = false;
+	for(; sheet[row-1].one_row[i] != '\n';i++)
+	{
+		if(sheet[row-1].one_row[i] == '\"')
+		{
+			if(q_mark == true)
+			{
+				if(sheet[row-1].one_row[i-1] != '\\')
+					q_mark = false;
+			}
+			else
+			{
+				if(i > 0)
+					if(sheet[row-1].one_row[i-1] != '\\')
+						q_mark = true;
+			}
+		}
+		if(q_mark == false)
+		{
+			if(sheet[row-1].one_row[i] == separator)
+			{
+				if(sheet[row-1].one_row[i-1] != '\\')
+					break;
+			}
+		}
+		sheet[row-1].one_row[i] = '\0';
+	}
 	int x = 0, j = 0;
 	for(; j < sheet[row-1].row_size;)
 	{
@@ -937,7 +1019,7 @@ int c_e_clear(row *sheet, int r_f, int r_t, int c_f, int c_t, char separator)
 {
 	for(int j = r_f; j <= r_t; j++)
 		for(int i = c_f; i <= c_t; i++)
-			dellete_cell_value(sheet, j, i, separator);
+			delete_cell_value(sheet, j, i, separator);
 
 	return 1;
 }
@@ -1016,10 +1098,39 @@ int get_cell_size(row *sheet, char separator, int cell, int row)
 		return 0;
 	if(sheet[row-1].one_row[position] == separator)
 		return 0;
-	for(i = position; sheet[row-1].one_row[i] != separator && sheet[row-1].one_row[i-1] != '\\';i++)
-		if(sheet[row-1].one_row[i] == '\n')
-			return i - position;
 
+	bool q_mark = false;
+	for(int j = position; j < sheet[row-1].row_size ; j++)
+	{
+		if(sheet[i].one_row[j] == '\"')
+		{
+			if(q_mark == true)
+			{
+				if(sheet[i].one_row[j-1] != '\\')
+					q_mark = false;
+			}
+			else
+			{
+				if(j > 0)
+					if(sheet[i].one_row[j-1] != '\\')
+						q_mark = true;
+			}
+		}
+		if(sheet[i].one_row[j] == separator && q_mark == false)
+		{
+			if(sheet[i].one_row[j-1] != '\\')
+			{
+				return i - position;
+			}
+		}
+	}
+	
+	/* WORKS WITHOUT QUOTATION MARKS 	
+	for(i = position; sheet[row-1].one_row[i] != separator && sheet[row-1].one_row[i-1] != '\\';i++)
+	{
+		if(sheet[row-1].one_row[i] == '\n')
+	}
+	*/
 	return i - position;
 }
 int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t, char separator)
@@ -1041,7 +1152,7 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 		{
 			x = 0;
 			position = get_cell_position(sheet, j, i, separator);
-			dellete_cell_value(sheet, j, i, separator);
+			delete_cell_value(sheet, j, i, separator);
 			row_move_right(sheet,j, i, str_size, separator);	
 			for(int k = position; k < (position + str_size) ;k++)
 				sheet[j-1].one_row[k] = help[x++];
@@ -1238,7 +1349,7 @@ int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_var
 	if(error == -1)
 		return -1;
 
-	dellete_cell_value(sheet,row,cell,separator);
+	delete_cell_value(sheet,row,cell,separator);
 	row_move_right(sheet, row, cell+1, temp_size, separator);
 	change_cell_value(sheet,row,cell,separator, help, size);
 	return 1;
@@ -1351,14 +1462,12 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 			fprintf(stderr ,"cell_positon_R_C  %d_%d_%d \n",get_cell_position(sheet, k, j, separator), k, j );
 			fprintf(stderr,"%c",sheet[k-1].one_row[position]);
 			
-			store_one_cell(help, sheet, k, j, separator);
-			change_cell_value(sheet, k, j-1, separator, help, size);
+		//	store_one_cell(help, sheet, k, j, separator);
+		//	change_cell_value(sheet, k, j-1, separator, help, size);
 
-			fprintf(stderr, "size %d\n",sheet[j-1].row_size);
-			dellete_cell_value(sheet, k, j, separator);
-			fprintf(stderr, "size %d\n",sheet[j-1].row_size);
-			*/
-		/*
+		//	fprintf(stderr, "size %d\n",sheet[j-1].row_size);
+		//	delete_cell_value(sheet, k, j, separator);
+		//	fprintf(stderr, "size %d\n",sheet[j-1].row_size);
 			fprintf(stderr,"\n");
 			for(int x = 0; x <= size; x++)
 			{
@@ -1479,18 +1588,82 @@ void initialize_sheet(row *sheet, int row_counter)
 
 	}
 }
-void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separator)
+void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separator, char separator)
 {
 	FILE *sheet_file;
 	if(is_there_separator == 1)sheet_file = fopen(argv[4], "w+"); else sheet_file = fopen(argv[2], "w+");
+	char *help = NULL;
+	int k = 0;
 
+	for(int i = 0; i < row_counter; i++)
+	{
+		help = malloc((sheet[i].row_size + RESERVE) * sizeof(char));	 	
+		array_char_init(help, sheet[i].row_size + RESERVE);
+		for(int j = 0; j < sheet[i].row_size; j++)
+		{
+			if (sheet[i].one_row[j] == '\0')
+				continue;
+			if(sheet[i].one_row[j] == '\\')
+			{					
+				if(j > 0)
+				{
+					if(sheet[i].one_row[j-1] == '\\')
+					{
+						help[k++] = sheet[i].one_row[j];
+						continue;
+					}
+					else
+						continue;
+				}
+			}
+			if(sheet[i].one_row[j] == '\"')
+			{
+				if(j > 0)
+				{
+					if(sheet[i].one_row[j-1] != '\\')
+						continue;
+				}
+				else
+					continue;
+					
+			}
+			if(sheet[i].one_row[j] == separator)
+			{
+				if(sheet[i].one_row[j-1] == '\\')
+				{
+					help[k] = '"';
+					int i = k;
+					k = k +2;
+					for(; help[i] != separator && i >= 0;i--)
+					{
+						help[i+1] = help[i];
+					}
+					help[i+1] = '"';
+					continue;
+				}
+			}
+			help[k++] = sheet[i].one_row[j];
+		}
+		help[k] = '\0';
+		for(int x = 0; help[x] != '\0';x++)
+		{
+			fputc(help[x], sheet_file);
+		}
+		k = 0;
+		free(help);
+		help = NULL;
+	}
+
+/*WORKS WITH SPECIAL VALUES 
 	for(int i = 0; i < row_counter;i++)
 	{
 		//fprintf(stderr, "%d row\n",i+1);
 		//fprintf(stderr, "%d cels_in_row\n",sheet[i].cels_in_row+1);
 		//fprintf(stderr, "%d rows_lenght\n",sheet[i].row_size);
 		for (int j = 0; j < sheet[i].row_size; j++)
-		{
+		{				
+
+
 			fputc(sheet[i].one_row[j], sheet_file);
 			if(sheet[i].one_row[j] == '\0')				
 				continue;
@@ -1498,6 +1671,8 @@ void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separat
 				break;
 		}	
 	}
+
+*/	
 	fclose(sheet_file);
 
 }

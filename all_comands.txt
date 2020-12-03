@@ -1,0 +1,1 @@
+'[8,4];[1,2,3,4];[min];[max];[find hovno];[_];irow;arow;drow;icol;acol;dcol;[set];def _4566;use _516556;int _4156;set hovno;clear;swap [4,5];sum [1,2];avg [1,2];count [5,5];len [1,2]'

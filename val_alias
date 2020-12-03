@@ -1,0 +1,1 @@
+valgrind -s --tool=memcheck --leak-check=full 
