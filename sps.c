@@ -1631,14 +1631,15 @@ void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separat
 			{
 				if(sheet[i].one_row[j-1] == '\\')
 				{
-					help[k] = '"';
-					int i = k;
-					k = k +2;
+					help[k+1] = separator;
+					help[k+2] = '"';
+					int i = k-1;
 					for(; help[i] != separator && i >= 0;i--)
 					{
 						help[i+1] = help[i];
 					}
 					help[i+1] = '"';
+					k = k + 3;
 					continue;
 				}
 			}
@@ -1670,7 +1671,7 @@ void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separat
 			if(sheet[i].one_row[j] == '\n')
 				break;
 		}	
-	}
+	}j
 
 */	
 	fclose(sheet_file);
