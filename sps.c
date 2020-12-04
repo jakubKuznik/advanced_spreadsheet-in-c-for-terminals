@@ -94,11 +94,11 @@ int store_one_command(char *single_command, char *commands, int *last_command, i
 int call_command(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator, int *row_counter, int *temp_10);
 
 /*These commands are for sheet table edit.*/
-int sheet_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_to, char separator, int *row_counter);
+int sheet_edit(row *sheet, char *single_command,int *row_from, int *row_to, int *cell_to, int *cell_from, char separator, int *row_counter);
 //It ll put rows up the choosen rows OR It ll put rows under the choosen rows.
-int s_e_irow_arow(row *sheet, int row_from , int row_to, char separator, int *row_counter, int irow_arow);
+int s_e_irow_arow(row *sheet, int row_from, int row_to, int cell_from, int cell_to, char separator, int *row_counter, int irow_arow);
 //It delete choosen rows. 
-int s_e_drow(row *sheet, int row, int *row_counter);
+int s_e_drow(row *sheet, int row_from, int row_to, int *row_counter);
 //It ll add column right from every chosen cell OR It ll add column left from every chosen cell. 
 int s_e_icol_acol(row *sheet,int cell, char separator, int *row_counter,int icol_acol);
 //It ll delete every chosen column.
@@ -157,6 +157,8 @@ int get_cell_position(row *sheet, int row, int cell, char separator);
 //FUNCTIONS FOR EDITING SHEET
 int row_move_right(row *sheet, int row, int cell, int space, char separator);
 void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separator, char separator);
+int sheet_reformat(row *sheet, int row_counter);
+int move_rows_down(row *sheet, int row, int *row_counter, char separator);
 
 //FUNCTIONS FOR SIMPLIFICATION 
 void array_int_init(int size, int *array); //This ll initalize int array;
@@ -233,6 +235,7 @@ int main(int argc, char **argv)
 	//printing editet sheet and free memory 
 	
 	//end_print_sheet(sheet, row_counter);
+	sheet_reformat(sheet, row_counter);
 	rewrite_file(sheet, row_counter, argv, is_there_separator, d_separator);
 	
 	
@@ -240,6 +243,56 @@ int main(int argc, char **argv)
 	free_sheet(sheet, row_counter);
 	return 0; 
 }
+/*
+If i have some nonsense in sheet i ll rework it.
+*/
+int sheet_reformat(row *sheet, int row_counter)
+{
+	int new_size = 0;
+	char *help = NULL;
+	char *help_two = NULL;
+	for(int j = 0; j < row_counter; j++)
+	{
+		help = malloc(sheet[j].row_size * sizeof(char));
+		help_two = malloc(sheet[j].row_size * sizeof(char));
+		if(help == NULL && help_two == NULL)
+		{
+			fprintf(stderr, "Maloc Error");
+			return -1;
+		}
+		array_char_init(help, sheet[j].row_size);
+		array_char_init(help_two, sheet[j].row_size);
+		for(int i = 0; i < sheet[j].row_size; i++)
+		{
+			help[i] = sheet[j].one_row[i];
+		}
+		new_size = 0;
+		for(int i = 0;i < sheet[j].row_size; i++)
+		{
+			help_two[new_size++] = help[i];
+		}
+		free(sheet[j].one_row);
+		sheet[j].row_size = new_size;
+		sheet[j].one_row = malloc(new_size * sizeof(char));
+		if(sheet[j].one_row == NULL)
+		{
+			fprintf(stderr, "Maloc Error");
+			return -1;
+		}
+		array_char_init(sheet[j].one_row, new_size);
+		for(int i = 0; i < new_size; i++)
+		{
+			printf("%c",help_two[i]);
+			sheet[j].one_row[i] = help_two[i];
+		}
+		free(help_two);
+		free(help);
+		help = NULL;
+	}
+	return 0;	
+}
+
+
 //TODO
 /*
 It move row content from one cell to right.
@@ -386,59 +439,79 @@ int move_rows_up(row *sheet, int row, int *row_counter)
 	*row_counter = *row_counter -1;
 	return 0;
 }
+int move_rows_down(row *sheet, int row, int *row_counter, char separator)
+{
+	int c = sheet[0].cels_in_row;
+	sheet[*row_counter].one_row = NULL;
+	sheet[*row_counter].cels_in_row = 0;
+	sheet[*row_counter].row_size = 0;
+	printf("%d",*row_counter);
+	int i = *row_counter;
+	for(; i >= row; i--)
+	{
+		sheet[i].one_row = sheet[i-1].one_row;
+		sheet[i].row_size = sheet[i-1].row_size;
+		sheet[i].cels_in_row = sheet[i-1].cels_in_row;
+	}
+	printf("XXX%d ",i);
+	sheet[i].one_row = malloc(c+3 * sizeof(char));
+	if(sheet[i].one_row == NULL)
+	{
+		fprintf(stderr, "Maloc error ");
+		return -1;
+	}
+	sheet[i].cels_in_row = c;
+	sheet[i].row_size = c+2;
+	for(int j = 0; j < c+1; j++)
+		sheet[i].one_row[j] = separator;
+    sheet[i].one_row[c+1] = '\n';
+	sheet[i].one_row[c+2] = '\0';
+
+	*row_counter = *row_counter + 1;
+	return 0;
+}
 //This fun can be used if u want to move all rows in indexation right 
 /*
 It ll put row up the choosen rows OR It ll put row under the choosen row.
 irow 1			up
 arow 2 			under
 */
-int s_e_irow_arow(row *sheet, int row_from, int row_to, char separator, int *row_counter, int irow_arow)
+int s_e_irow_arow(row *sheet, int row_from, int row_to, int cell_from, int cell_to, char separator, int *row_counter, int irow_arow)
 {
-	//row counter = 3 if there are 3 rows 
-	int h_cell = sheet[0].cels_in_row; 
-	int i = *row_counter;
-
-
-	if(row_from == row_to)		
-	{		
-		*row_counter = *row_counter +1;
-	
-		if(irow_arow == AROW)
-			row_to = row_to +1;
-	
-		for(; i > row_to-1; i--)
+	int error = 0;
+	for(int j = row_from; j <= row_to; j++)
+	{
+		for(int i = cell_from; i <= cell_to; i++)	
 		{
-			sheet[i].one_row = sheet[i-1].one_row;
-			sheet[i].cels_in_row = sheet[i-1].cels_in_row;
-			sheet[i].row_size = sheet[i-1].row_size;
+			if(irow_arow == AROW)
+			{					
+				error = move_rows_down(sheet, j+1, row_counter, separator);
+				if(error == -1)
+					return -1;
+			}
+			else
+			{
+				error = move_rows_down(sheet, j, row_counter, separator);
+				if(error == -1)
+					return -1;
+			}
 		}
-		sheet[i].row_size = h_cell+3;
-		sheet[i].one_row = malloc(h_cell+3 * sizeof(char));
-		array_char_init(sheet[i].one_row, h_cell+3);
-		sheet[i].cels_in_row = h_cell;
-
-
-		for(int j = 0; j <= h_cell;j++)
-			sheet[i].one_row[j] = separator;
-		sheet[i].one_row[h_cell+1] = '\n';
-		sheet[i].one_row[h_cell+2] = '\0';
-	
-
 	}
-//	for()
-
-
 	return 1;
 }
 /*
 It delete choosen rows. 
 */
-int s_e_drow(row *sheet, int row, int *row_counter)
+int s_e_drow(row *sheet, int row_from,  int row_to, int *row_counter)
 {
-	sheet[row-1].row_size = 0;
-	sheet[row-1].one_row = NULL;
-	sheet[row-1].cels_in_row = 0;
-	move_rows_up(sheet, row, row_counter);
+	for(int i = row_to -1; i >= row_from-1; i--)
+	{
+		free(sheet[i].one_row);
+		sheet[i].row_size = 0;
+		sheet[i].one_row = NULL;
+		sheet[i].cels_in_row = 0;
+		move_rows_up(sheet, i+1, row_counter);
+	}
 	return 1;
 }
 /*
@@ -492,14 +565,14 @@ int s_e_dcol(row *sheet, int cell, char separator, int *row_counter)
 }
 /*if it found data sturctu command it call it ll be executed*/
 //error = -1 bad syntax; 0 = command not found; 1 = command_executed 
-int sheet_edit(row *sheet, char *single_command,int *row_from, int *row_to, int *cell_to, char separator, int *row_counter)
+int sheet_edit(row *sheet, char *single_command,int *row_from, int *row_to, int *cell_to, int *cell_from, char separator, int *row_counter)
 {
 	if(strcmp(single_command, "irow")==0) 
-		return s_e_irow_arow(sheet, *row_from, *row_to, separator, row_counter, IROW);
+		return s_e_irow_arow(sheet, *row_from, *row_to, *cell_from, *cell_to, separator, row_counter, IROW);
 	else if(strcmp(single_command, "arow")==0) 
-		return s_e_irow_arow(sheet, *row_from, *row_to,separator, row_counter, AROW);
+		return s_e_irow_arow(sheet, *row_from, *row_to, *cell_from, *cell_to, separator, row_counter, AROW);
 	else if(strcmp(single_command, "drow")==0) 
-		return s_e_drow(sheet,*row_to, row_counter);
+		return s_e_drow(sheet, *row_from, *row_to,  row_counter);
 	else if(strcmp(single_command, "icol")==0) 
 		return s_e_icol_acol(sheet, *cell_to, separator, row_counter, 1);
 	else if(strcmp(single_command, "acol")==0) 
@@ -1106,10 +1179,7 @@ int get_cell_size(row *sheet, char separator, int cell, int row)
 	if(sheet[row-1].one_row[position] == '\n')
 		return 0;
 	if(sheet[row-1].one_row[position] == separator)
-	{
 		return 0;
-	}
-
 	for(i = position; sheet[row-1].one_row[i] != separator && sheet[row-1].one_row[i-1] != '\\';i++)
 	{
 		if(sheet[row-1].one_row[i] == '\n')
@@ -1306,7 +1376,6 @@ int temp_set(int row_to, int cell_to, int *temp_10)
 /*
 Tempo variable ll be used and set to some cell 
 use _X
-
 */
 int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator)
 {
@@ -1341,7 +1410,6 @@ int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_var
 			break;
 
 	}
-
 	error = sheet_row_realoc(sheet, row, size);
 	if(error == -1)
 		return -1;
@@ -1392,7 +1460,7 @@ int call_command(row *sheet, char *single_command, int *row_from, int *row_to, i
 	int error = 0;
 
 	//error = -1 bad syntax; 0 = command not found; 1 = command_executed 
-	error = sheet_edit(sheet, single_command, row_from, row_to, cell_to, separator, row_counter);
+	error = sheet_edit(sheet, single_command, row_from, row_to, cell_to, cell_from, separator, row_counter);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
@@ -1443,8 +1511,8 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 		error = call_command(sheet, single_command, &row_from, &row_to, &cell_from, &cell_to, tempo_vars, separator, row_counter, temp_10);
 		if(error != 0) return -1;
 
-
 		//TODO DELETE DEBUGING
+		/*
 		int k = row_to;
 		int size =0;		
 		char help[sheet[k-1].row_size];
@@ -1469,6 +1537,7 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 			}
 
 		}
+		*/
 		//HERE 
 
 	}
@@ -1595,8 +1664,6 @@ void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separat
 		array_char_init(help, sheet[i].row_size + RESERVE);
 		for(int j = 0; j < sheet[i].row_size; j++)
 		{
-			if(sheet[i].one_row[j] == '\0')
-				continue;
 			if(sheet[i].one_row[j] == '\\')
 			{					
 				if(j > 0)
@@ -1639,7 +1706,6 @@ void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separat
 					}
 				}
 			}
-					
 			help[k++] = sheet[i].one_row[j];
 		}
 		help[k] = '\0';
