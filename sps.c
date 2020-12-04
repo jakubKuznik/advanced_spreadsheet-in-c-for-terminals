@@ -1097,46 +1097,28 @@ int get_cell_size(row *sheet, char separator, int cell, int row)
 	int i =0;
 	int position = 0;
 	position = get_cell_position(sheet, row, cell, separator);
+	bool first_cell = false;
 	if(position == 0)
+	{
+		first_cell = true;
 		position++;
+	}
 	if(sheet[row-1].one_row[position] == '\n')
 		return 0;
 	if(sheet[row-1].one_row[position] == separator)
-		return 0;
-
-	bool q_mark = false;
-	for(int j = position; j < sheet[row-1].row_size ; j++)
 	{
-		if(sheet[i].one_row[j] == '\"')
-		{
-			if(q_mark == true)
-			{
-				if(sheet[i].one_row[j-1] != '\\')
-					q_mark = false;
-			}
-			else
-			{
-				if(j > 0)
-					if(sheet[i].one_row[j-1] != '\\')
-						q_mark = true;
-			}
-		}
-		if(sheet[i].one_row[j] == separator && q_mark == false)
-		{
-			if(sheet[i].one_row[j-1] != '\\')
-			{
-				return i - position;
-			}
-		}
+		return 0;
 	}
-	
-	/* WORKS WITHOUT QUOTATION MARKS 	
+
 	for(i = position; sheet[row-1].one_row[i] != separator && sheet[row-1].one_row[i-1] != '\\';i++)
 	{
 		if(sheet[row-1].one_row[i] == '\n')
+			break;
 	}
-	*/
-	return i - position;
+	if(first_cell == false)
+		return i - position  ;
+	else
+		return i - position + 1 ;
 }
 int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t, char separator)
 {
@@ -1345,6 +1327,11 @@ int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_var
 		fprintf(stderr, "ERROR bad syntax of command def_X. X has to be number ");
 		return -1;
 	}
+	//For empty variable 
+	if(tempo_vars[tempo_var_num][0] == '\0')
+	{
+		return 1;
+	}
 
 	for(int i = 0; i < TEMPO_VARS_LENGHT;i++)
 	{
@@ -1456,12 +1443,12 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 		error = call_command(sheet, single_command, &row_from, &row_to, &cell_from, &cell_to, tempo_vars, separator, row_counter, temp_10);
 		if(error != 0) return -1;
 
+
 		//TODO DELETE DEBUGING
-		/*
-		int k = row_from;
-		int position = 0; 
-		int size =0;
+		int k = row_to;
+		int size =0;		
 		char help[sheet[k-1].row_size];
+		int position = 0;
 		array_char_init(help, sheet[k-1].row_size);
 		fprintf(stderr, "row %d    ", k);
 		for(int j = cell_from; j <=  cell_to; j++)
@@ -1469,22 +1456,19 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 			size = get_cell_size(sheet, separator, j, k);
 			fprintf(stderr, "size:%d\n",size);
 			position = get_cell_position(sheet, k, j, separator);
-			fprintf(stderr ,"cell_positon_R_C  %d_%d_%d \n",get_cell_position(sheet, k, j, separator), k, j );
-			fprintf(stderr,"%c",sheet[k-1].one_row[position]);
+			fprintf(stderr ," cell_positon_R_C  %d_%d_%d \n",position, k, j);
 			
-		//	store_one_cell(help, sheet, k, j, separator);
+		//`	store_one_cell(help, sheet, k, j, separator);
+
 		//	change_cell_value(sheet, k, j-1, separator, help, size);
 
 		//	fprintf(stderr, "size %d\n",sheet[j-1].row_size);
-		//	delete_cell_value(sheet, k, j, separator);
-		//	fprintf(stderr, "size %d\n",sheet[j-1].row_size);
-			fprintf(stderr,"\n");
 			for(int x = 0; x <= size; x++)
 			{
 				fprintf(stderr, "%c",help[x]);
 			}
+
 		}
-		*/
 		//HERE 
 
 	}
@@ -1604,6 +1588,7 @@ void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separat
 	if(is_there_separator == 1)sheet_file = fopen(argv[4], "w+"); else sheet_file = fopen(argv[2], "w+");
 	char *help = NULL;
 	int k = 0;
+
 	for(int i = 0; i < row_counter; i++)
 	{
 		help = malloc((sheet[i].row_size + RESERVE) * sizeof(char));	 	
