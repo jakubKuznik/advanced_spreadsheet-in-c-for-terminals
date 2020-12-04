@@ -71,6 +71,8 @@ inc _X - numerická hodnota v dočasné proměnné bude zvětšena o 1. Pokud do
 #define IROW 1
 #define AROW 2
 #define RESERVE 100 //if i want to transfer \separator to ""
+#define ICOL 1
+#define ACOL 2
 
 typedef struct 
 {
@@ -301,53 +303,24 @@ Also cell and row is altomaticly -1
 */
 int row_move_right(row *sheet, int row, int cell, int space, char separator)
 {
-	row = row -1;
-	cell = cell -1;
-	int k = 0;
-	char *help = NULL;
 	int position =0;
-	space = space +1;
 
-	position = get_cell_position(sheet, row+1, cell+1, separator);
-	help = malloc((sheet[row].row_size + space) *sizeof(char));
-	array_char_init(help, space);
-	if(help == NULL)
+	position = get_cell_position(sheet, row, cell, separator);		
+	sheet[row-1].one_row = realloc(sheet[row-1].one_row, (sheet[row-1].row_size + space) * sizeof(char));
+	if(sheet[row-1].one_row == NULL)
 	{
 		fprintf(stderr, "ERROR malloc failed \n");
 		return -1;
 	}
-	sheet[row].one_row = realloc(sheet[row].one_row, (sheet[row].row_size + space) * sizeof(char));
-	if(sheet[row].one_row == NULL)
-	{
-		fprintf(stderr, "ERROR malloc failed \n");
-		return -1;
-	}
-	sheet[row].row_size = sheet[row].row_size + space;
-	for(int i = sheet[row].row_size - space; i < sheet[row].row_size; i++)
-		sheet[row].one_row[i] = '\0';
+	sheet[row-1].row_size = sheet[row-1].row_size + space;
+	//inicialize realoc 
+	for(int i = sheet[row-1].row_size - space; i < sheet[row-1].row_size; i++)
+		sheet[row-1].one_row[i] = '\0';
 
-
-	for(int i = position; i < sheet[row].row_size-2;i++)
-	{
-		help[k++] = sheet[row].one_row[i];
-		if(sheet[row].one_row[i] == '\n')
-			break;
-	}
-	k = 0;
-	for(int i = position + space; i < sheet[row].row_size ;i++)
-	{
-		sheet[row].one_row[i-1] = help[k];
-		if(help[k] == '\n')
-		{
-			sheet[row].one_row[i] = '\0';
-			break;		
-		}
-		k++;
-	}
-	free(help);
+	for(int i = sheet[row-1].row_size-1; i > position ;i--)
+		sheet[row-1].one_row[i] = sheet[row-1].one_row[i-1];
 	return 0;
 }
-//TODO
 /*
 If i want put some new content to cell. I can resize it
 Function automaticly do row -1;
@@ -445,7 +418,6 @@ int move_rows_down(row *sheet, int row, int *row_counter, char separator)
 	sheet[*row_counter].one_row = NULL;
 	sheet[*row_counter].cels_in_row = 0;
 	sheet[*row_counter].row_size = 0;
-	printf("%d",*row_counter);
 	int i = *row_counter;
 	for(; i >= row; i--)
 	{
@@ -453,8 +425,7 @@ int move_rows_down(row *sheet, int row, int *row_counter, char separator)
 		sheet[i].row_size = sheet[i-1].row_size;
 		sheet[i].cels_in_row = sheet[i-1].cels_in_row;
 	}
-	printf("XXX%d ",i);
-	sheet[i].one_row = malloc(c+3 * sizeof(char));
+	sheet[i].one_row = malloc(c+2 * sizeof(char));
 	if(sheet[i].one_row == NULL)
 	{
 		fprintf(stderr, "Maloc error ");
@@ -524,14 +495,13 @@ int s_e_icol_acol(row *sheet,int cell, char separator, int *row_counter,int icol
 {
 	if(icol_acol == 1)
 		cell--;
-
 	int position = 0;
 	for(int i = 0; i < *row_counter;i++)
 	{
 		if(cell != sheet[i].cels_in_row)
-			row_move_right(sheet,i+1, cell+1, 2, separator);
-		position = get_cell_position(sheet, i+1, cell+1, separator);		
+			row_move_right(sheet,i+1, cell+1, 1, separator);
 		
+		position = get_cell_position(sheet, i+1, cell+1, separator);		
 		sheet[i].one_row[position] = separator;
 		sheet[i].cels_in_row = sheet[i].cels_in_row + 1;
 	}
@@ -574,9 +544,9 @@ int sheet_edit(row *sheet, char *single_command,int *row_from, int *row_to, int 
 	else if(strcmp(single_command, "drow")==0) 
 		return s_e_drow(sheet, *row_from, *row_to,  row_counter);
 	else if(strcmp(single_command, "icol")==0) 
-		return s_e_icol_acol(sheet, *cell_to, separator, row_counter, 1);
+		return s_e_icol_acol(sheet, *cell_to, separator, row_counter, ICOL);
 	else if(strcmp(single_command, "acol")==0) 
-		return s_e_icol_acol(sheet, *cell_to, separator, row_counter, 2);
+		return s_e_icol_acol(sheet, *cell_to, separator, row_counter, ACOL);
 	else if(strcmp(single_command, "dcol")==0) 
 		return s_e_dcol(sheet, *cell_to, separator, row_counter);
 	return  0;
@@ -687,7 +657,17 @@ int get_cell_position(row *sheet, int row, int cell, char separator)
 {
 	int counter_separator = 0;
 	bool q_mark = false;	
-	
+
+	if(cell > sheet[row-1].cels_in_row)
+	{
+		int z = 0;
+		while (sheet[row-1].one_row[z] != '\n')
+		{
+			z++;
+		}
+		return z-1;
+	}
+
 	if(cell == 1)
 		return 0;
 
