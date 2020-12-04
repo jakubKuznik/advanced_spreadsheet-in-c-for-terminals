@@ -618,7 +618,8 @@ int get_cell_position(row *sheet, int row, int cell, char separator)
 	if(cell == 1)
 		return 0;
 
-	for(int i = 0; i<=sheet[row-1].row_size;i++)
+	int i =0;
+	for(; i < sheet[row-1].row_size; i++)
 	{
 		if(sheet[row-1].one_row[i] == '\"')
 		{
@@ -636,7 +637,7 @@ int get_cell_position(row *sheet, int row, int cell, char separator)
 		}
 		if(sheet[row-1].one_row[i] == separator)
 		{	
-			if(q_mark == true)
+			if(q_mark == false)
 			{
 				if(i > 0)
 				{
@@ -644,19 +645,19 @@ int get_cell_position(row *sheet, int row, int cell, char separator)
 					{
 						counter_separator++;
 						if(counter_separator == cell-1)
-							return i+1;
+							break;
 					}
 				}
 				else
 				{
 					counter_separator++;
 					if(counter_separator == cell-1)
-						return i+1;
+						break;
 				}
 			}			
 		}
 	}
-	return 0;
+	return i+1;
 }
 /*
 just store one cell to *char and end with \0
@@ -672,6 +673,10 @@ int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
 	{
 		if(sheet[row-1].one_row[position] == '\"')
 		{
+			if(position == 0)
+			{
+				q_mark = true;
+			}
 			if(q_mark == true)
 			{
 				if(sheet[position].one_row[position-1] != '\\')
@@ -1157,7 +1162,8 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 			for(int k = position; k < (position + str_size) ;k++)
 				sheet[j-1].one_row[k] = help[x++];
 		}
-		
+
+
 	return 1;
 }
 
@@ -1280,8 +1286,9 @@ int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars
 {
 	char help[TEMPO_VARS_LENGHT];
 	array_char_init(help, TEMPO_VARS_LENGHT);
-	char help_num[1];
-	help_num[0] = 0;
+	char help_num[2];
+	help_num[0] = '0';
+	help_num[1] = '\0';
 	int tempo_var_num = 0;
 	
 	store_one_cell(help, sheet, row, cell, separator);
@@ -1295,11 +1302,14 @@ int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars
 		fprintf(stderr, "ERROR bad syntax of command def_X. X has to be number ");
 		return -1;
 	}
-	for(int i = 0; i < MAX_COMMAND_SIZE-1 ; i++)
+	for(int i = 0; i < TEMPO_VARS_LENGHT ; i++)
 	{
-		temp_vars[tempo_var_num][i] = help[i];
 		if(help[i] == '\0')
+		{				
+			temp_vars[tempo_var_num][i] = help[i];
 			break;
+		}
+		temp_vars[tempo_var_num][i] = help[i];
 	}
 	return 1;
 }
@@ -1594,14 +1604,13 @@ void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separat
 	if(is_there_separator == 1)sheet_file = fopen(argv[4], "w+"); else sheet_file = fopen(argv[2], "w+");
 	char *help = NULL;
 	int k = 0;
-
 	for(int i = 0; i < row_counter; i++)
 	{
 		help = malloc((sheet[i].row_size + RESERVE) * sizeof(char));	 	
 		array_char_init(help, sheet[i].row_size + RESERVE);
 		for(int j = 0; j < sheet[i].row_size; j++)
 		{
-			if (sheet[i].one_row[j] == '\0')
+			if(sheet[i].one_row[j] == '\0')
 				continue;
 			if(sheet[i].one_row[j] == '\\')
 			{					
@@ -1625,24 +1634,27 @@ void rewrite_file(row *sheet, int row_counter, char **argv, int is_there_separat
 				}
 				else
 					continue;
-					
 			}
 			if(sheet[i].one_row[j] == separator)
 			{
-				if(sheet[i].one_row[j-1] == '\\')
+				if(j > 0)
 				{
-					help[k+1] = separator;
-					help[k+2] = '"';
-					int i = k-1;
-					for(; help[i] != separator && i >= 0;i--)
+					if(sheet[i].one_row[j-1] == '\\')
 					{
-						help[i+1] = help[i];
+						help[k+1] = separator;
+						help[k+2] = '"';
+						int i = k-1;
+						for(; help[i] != separator && i >= 0;i--)
+						{
+							help[i+1] = help[i];
+						}
+						help[i+1] = '"';
+						k = k + 3;
+						continue;
 					}
-					help[i+1] = '"';
-					k = k + 3;
-					continue;
 				}
 			}
+					
 			help[k++] = sheet[i].one_row[j];
 		}
 		help[k] = '\0';
