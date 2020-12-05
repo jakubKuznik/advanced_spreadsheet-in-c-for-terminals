@@ -6,20 +6,15 @@
 /***						Jakub Kuznik        				 ***/
 /*** 						listopad\prosinec 2020			  	 ***/
 /*******************************************************************/
-
 /*
 EXECUTION
 ./sps [-d DELIM] CMD_SEQUENCE FILE
-
 SELECTIONS  COMMANDS 
 [R,C] [R,_][_,C][R1,C1,R2,C2][_,_][min][max][find STR][_]
-
 SHEET EDITING COMMANDS 
 irow arow drow icol acol dcol 
-
 SHEET CONTENT EDITING COMMANDS 
 set STR clear swap [R,C] sum [R,C] avg [R,C] count [R,C] len [R,C] 
-
 TEMPORARILY VARIABLES COMMANDS 
 def _X use _X inc _X [set]
 */
@@ -50,6 +45,8 @@ def _X use _X inc _X [set]
 #define RESERVE 100 //if i want to transfer \separator to ""
 #define ICOL 1
 #define ACOL 2
+#define ERROR_VALUE_ONE -1 
+#define ERROR_VALUE_ZERO 0
 
 typedef struct 
 {
@@ -121,12 +118,14 @@ int store_sheet(row *sheet, char **argv, int is_there_separator, int *rows_lengh
 void free_sheet(row *sheet, int rows);
 void end_print_sheet(row *sheet, int row_counter);
 int sheet_row_realoc(row *sheet, int row, int space);
+int error_maloc(int return_value);
 
 //FUNCTIONS FOR WOKING WITH CELLS 
 int delete_cell_value(row *sheet, int row, int cell, char separator);
 int change_cell_value(row *sheet, int row, int cell, char separator, char *value, int size);
 int get_cell_size(row *sheet, char separator, int cell, int row);
 int get_cell_position(row *sheet, int row, int cell, char separator);
+int store_row(row *sheet, char *store_to, int row);
 
 //FUNCTIONS FOR EDITING SHEET
 int row_move_right(row *sheet, int row, int cell, int space, char separator);
@@ -143,26 +142,23 @@ int get_array_size(char *array, int max_size);
 int main(int argc, char **argv)
 {
 	int errors = 0; 
-	int is_there_separator = 0; // if there is separator in argv it ll be changed to true 
+	int is_there_separator = 0; 		// if there is separator in argv it ll be changed to true 
 	int d_separator;		
 	int row_counter = 0;
 	int *rows_lenght = NULL;
 	int commands_char_sum = 0;	
-	int commands_sum = 0;  //how many commands are on input 
+	int commands_sum = 0;				//how many commands are on input 
 
-	//first i ll check input for erors find separator and story commands 
 	errors = input_error(argc);
 	if(errors != 0) return 0;
-    is_there_separator = separe(argc, argv, &d_separator);
+    is_there_separator = separe(argc, argv, &d_separator); 	 //first i ll check input for erors find separator and story commands 
 	errors = commands_error_check(argv,is_there_separator, &commands_char_sum, &commands_sum); 
 	if(errors != 0) return -1;
 
-	//Count input file rows and size so i can maloc 
-	errors = count_rows(argv, is_there_separator, &row_counter);
+	errors = count_rows(argv, is_there_separator, &row_counter); //Count input file rows and size so i can maloc
 	if(errors != 0) return -1;
 
-	//HERE I CREATE ROW SHEET IT IS ARRAY OF ROW THAT CONTAIN CHAR ROW AND ROW SIZE 
-	row sheet[row_counter -1];
+	row sheet[row_counter -1]; //HERE I CREATE ROW SHEET IT IS ARRAY OF ROW THAT CONTAIN CHAR ROW AND ROW SIZE 
 
 	rows_lenght = malloc((row_counter)* sizeof(rows_lenght));
 	array_int_init(row_counter, rows_lenght);
@@ -174,8 +170,7 @@ int main(int argc, char **argv)
 	}
 
 	initialize_sheet(sheet, row_counter);
-	//alocate space in heap for my sheet that can have infinity size 
-	errors = alocate_sheet(sheet, row_counter, rows_lenght);
+	errors = alocate_sheet(sheet, row_counter, rows_lenght);//alocate space in heap for my sheet that can have infinity size 
 	if(errors != 0)
 	{
 		free(rows_lenght);
@@ -201,13 +196,22 @@ int main(int argc, char **argv)
 		free_sheet(sheet, row_counter);
 		return -1;
 	}
-	//end_print_sheet(sheet, row_counter);
 	sheet_reformat(sheet, row_counter);
 	rewrite_file(sheet, row_counter, argv, is_there_separator, d_separator);
 	
 	free(rows_lenght);
 	free_sheet(sheet, row_counter);
 	return 0; 
+}
+int error_syntax(int return_value)
+{
+	fprintf(stderr, "Syntax error in commands ");
+	return return_value;
+}
+int error_maloc(int return_value)
+{
+	fprintf(stderr, "Maloc Error");
+	return return_value;
 }
 /*
 If i have some nonsense in sheet i ll rework it.
@@ -222,10 +226,7 @@ int sheet_reformat(row *sheet, int row_counter)
 		help = malloc(sheet[j].row_size * sizeof(char));
 		help_two = malloc(sheet[j].row_size * sizeof(char));
 		if(help == NULL && help_two == NULL)
-		{
-			fprintf(stderr, "Maloc Error");
-			return -1;
-		}
+			return error_maloc(ERROR_VALUE_ONE);
 		array_char_init(help, sheet[j].row_size);
 		array_char_init(help_two, sheet[j].row_size);
 		for(int i = 0; i < sheet[j].row_size; i++)
@@ -241,10 +242,7 @@ int sheet_reformat(row *sheet, int row_counter)
 		sheet[j].row_size = new_size;
 		sheet[j].one_row = malloc(new_size * sizeof(char));
 		if(sheet[j].one_row == NULL)
-		{
-			fprintf(stderr, "Maloc Error");
-			return -1;
-		}
+			return error_maloc(ERROR_VALUE_ONE);
 		array_char_init(sheet[j].one_row, new_size);
 		for(int i = 0; i < new_size; i++)
 		{
@@ -268,10 +266,7 @@ int row_move_right(row *sheet, int row, int cell, int space, char separator)
 	position = get_cell_position(sheet, row, cell, separator);		
 	sheet[row-1].one_row = realloc(sheet[row-1].one_row, (sheet[row-1].row_size + space) * sizeof(char));
 	if(sheet[row-1].one_row == NULL)
-	{
-		fprintf(stderr, "ERROR malloc failed \n");
-		return -1;
-	}
+		return error_maloc(ERROR_VALUE_ONE);
 	sheet[row-1].row_size = sheet[row-1].row_size + space;
 	//inicialize realoc 
 	for(int i = sheet[row-1].row_size - space; i < sheet[row-1].row_size; i++)
@@ -291,10 +286,7 @@ int sheet_row_realoc(row *sheet, int row, int space)
 	row = row -1;
 	sheet[row].one_row = realloc(sheet[row].one_row, (sheet[row].row_size + space) * sizeof(char));
 	if(sheet[row].one_row == NULL)
-	{
-		fprintf(stderr, "ERROR realoc not succesfull\n");
-		return -1;
-	}
+		return error_maloc(ERROR_VALUE_ONE);
 	sheet[row].row_size = (sheet[row].row_size + space);
 	return 0;
 }
@@ -386,10 +378,7 @@ int move_rows_down(row *sheet, int row, int *row_counter, char separator)
 	}
 	sheet[i].one_row = malloc(c+2 * sizeof(char));
 	if(sheet[i].one_row == NULL)
-	{
-		fprintf(stderr, "Maloc error ");
-		return -1;
-	}
+		return error_maloc(ERROR_VALUE_ONE);
 	sheet[i].cels_in_row = c;
 	sheet[i].row_size = c+2;
 	for(int j = 0; j < c; j++)
@@ -466,28 +455,63 @@ int s_e_icol_acol(row *sheet,int cell, char separator, int *row_counter,int icol
 	}
 	return 1;
 }
+int store_row(row *sheet, char *store_to, int row)
+{
+	for(int i = 0; i < sheet[row-1].row_size; i++)
+		store_to[i] = sheet[row-1].one_row[i];	
+	return 0;
+}
 /*
 It ll delete every chosen column.
 */
 int s_e_dcol(row *sheet, int cell, char separator, int *row_counter)
 {
-	int position = 0;
+	int position = 0, x = 0;
+	char *help = NULL;
 	for(int i = 0; i < *row_counter;i++)
 	{
-		position = get_cell_position(sheet, i+1, cell, separator);		
+		help = malloc(sheet[i].row_size * sizeof(char));
+		if(help == NULL)
+			return error_maloc(ERROR_VALUE_ONE);
+		array_char_init(help, sheet[i].row_size);
+		store_row(sheet, help, i+1);
+		position = get_cell_position(sheet, i+1, cell, separator);
+		if(cell > 1)
+		{				
+			position++;
+			if(cell == sheet[i].cels_in_row+1)
+				help[position] = '\0';
+		}
 		for(int j = position; j < sheet[i].row_size;j++)
 		{
-			if(sheet[i].one_row[j] == separator)	
-				if(sheet[i].one_row[j-1] != '\\')
+			if(help[j] == separator)	
+			{
+				if(j > 0)
 				{
-					sheet[i].one_row[j] = '\0';	
-					break;
+					if(help[j-1] != '\\')
+					{
+						help[j] = '\0';	
+						break;
+					}
 				}
-			if(sheet[i].one_row[j] == '\n')
+				help[j] = '\0';	
 				break;
-			sheet[i].one_row[j] = '\0';	
+			}
+			if(help[j] == '\n')
+				break;
+			help[j] = '\0';	
 		}
 		sheet[i].cels_in_row = sheet[i].cels_in_row -1;
+		for(int k = 0; k < sheet[i].row_size; k++)
+		{
+			if(help[k] == '\0')
+				continue;
+			else
+				sheet[i].one_row[x++] = help[k];
+		}
+		sheet[i].row_size = x;
+		x = 0;
+		free(help);
 	}
 	return 1;
 }
@@ -982,10 +1006,7 @@ int delete_cell_value(row *sheet, int row, int cell, char separator)
 	sheet[row-1].row_size = sheet[row-1].row_size - size+1;
 	sheet[row-1].one_row = realloc(sheet[row-1].one_row ,j * sizeof(char));
 	if(sheet[row-1].one_row == NULL)
-	{	
-		fprintf(stderr, "Maloc error ");
-		return -1;
-	}
+		return error_maloc(ERROR_VALUE_ONE);
 	for(int i =0; i < j; i++)
 		sheet[row-1].one_row[i] = help[i];	
 	return 0;
@@ -1014,10 +1035,7 @@ int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell
 	{
 		num_one[k++] = single_command[i];
 		if(isdigit(single_command[i]) == 0)		
-		{			
-			fprintf(stderr, "ERROR swap [R,C] R is not an number ");
-			return -1;
-		}
+			return error_maloc(ERROR_VALUE_ONE);
 	}
 	i++;
 	k = 0;
@@ -1107,7 +1125,6 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 		}
 	return 1;
 }
-
 /*
 int c_e_sum()
 {
@@ -1144,15 +1161,9 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 			if(last_character == ']')
 				return c_e_swap(sheet, single_command, separator, *row_to, *cell_to);
 			else
-			{
-				fprintf(stderr, "ERROR bad syntax of swap command ");
-				return -1;
-			}	
+				return error_syntax(ERROR_VALUE_ONE);
 		else
-		{
-			fprintf(stderr, "ERROR bad syntax of swap command ");
-			return -1;
-		}
+			return error_syntax(ERROR_VALUE_ONE);
 	}
 	if(strstr(single_command, "sum") != NULL) //sum [R,C]
 	{
@@ -1160,15 +1171,9 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 			if(last_character == ']')
 				return 1;
 			else
-			{
-				fprintf(stderr, "ERROR bad syntax of sum command ");
-				return -1;
-			}
+				return error_syntax(ERROR_VALUE_ONE);
 		else
-		{
-			fprintf(stderr, "ERROR bad syntax of sum command ");
-			return -1;
-		}
+			return error_syntax(ERROR_VALUE_ONE);
 	}
 	if(strstr(single_command, "avg") != NULL)  //avg [R,C]
 	{
@@ -1176,15 +1181,9 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 			if(last_character == ']')
 				return 1;
 			else
-			{
-				fprintf(stderr, "ERROR bad syntax of avg command ");
-				return -1;
-			}
+				return error_syntax(ERROR_VALUE_ONE);
 		else
-			{
-				fprintf(stderr, "ERROR bad syntax of avg command ");
-				return -1;
-			}
+			return error_syntax(ERROR_VALUE_ONE);
 	}
 	if(strstr(single_command, "count") != NULL) //count [R,C]
 	{
@@ -1192,15 +1191,9 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 			if(last_character == ']')
 				return 1;
 			else
-			{
-				fprintf(stderr, "ERROR bad syntax of avg command ");
-				return -1;
-			}
+				return error_syntax(ERROR_VALUE_ONE);
 		else
-		{
-			fprintf(stderr, "ERROR bad syntax of avg command ");
-			return -1;
-		}
+			return error_syntax(ERROR_VALUE_ONE);
 	}
 	if(strstr(single_command, "len") != NULL) //len [R,C]
 	{
@@ -1208,15 +1201,9 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 			if(last_character == ']')
 				return 1;
 			else
-			{
-				fprintf(stderr, "ERROR bad syntax of avg command ");
-				return -1;
-			}
+				return error_syntax(ERROR_VALUE_ONE);
 		else
-		{
-			fprintf(stderr, "ERROR bad syntax of avg command ");
-			return -1;
-		}		
+			return error_syntax(ERROR_VALUE_ONE);
 	}
 	return 0;
 }
@@ -1238,10 +1225,7 @@ int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars
 		tempo_var_num = atoi(help_num);
 	}
 	else
-	{
-		fprintf(stderr, "ERROR bad syntax of command def_X. X has to be number ");
-		return -1;
-	}
+		return error_syntax(ERROR_VALUE_ONE);
 	for(int i = 0; i < TEMPO_VARS_LENGHT ; i++)
 	{
 		if(help[i] == '\0')
@@ -1278,15 +1262,10 @@ int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_var
 		tempo_var_num = atoi(help_num);
 	}
 	else
-	{
-		fprintf(stderr, "ERROR bad syntax of command def_X. X has to be number ");
-		return -1;
-	}
+		return error_syntax(ERROR_VALUE_ONE);
 	//For empty variable 
 	if(tempo_vars[tempo_var_num][0] == '\0')
-	{
 		return 1;
-	}
 	for(int i = 0; i < TEMPO_VARS_LENGHT;i++)
 	{
 		size++;
@@ -1321,13 +1300,10 @@ int temp_edit(row *sheet, char *single_command, int *row_to, int *cell_to, char 
 	if(strstr(single_command, "use _") != NULL)  // use _X
 	{
 		temp_use(sheet,single_command, *row_to, *cell_to, tempo_vars, separator);
-
 		return 1;
 	}
 	if(strstr(single_command, "int _") != NULL)  // inx _X
-	{
 			return 1;
-	}
 	return 0;
 }
 /*
@@ -1577,8 +1553,7 @@ int alocate_sheet(row *sheet, int row_counter, int *rows_lenght)
 				free(sheet[j].one_row);
 				sheet[j].one_row = NULL;
 			}
-			fprintf(stderr, "Maloc error \n");
-			return -1;
+			return error_maloc(ERROR_VALUE_ONE);
 		}
 	}
 	return 0;
