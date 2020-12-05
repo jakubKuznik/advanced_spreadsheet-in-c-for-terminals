@@ -87,7 +87,7 @@ int temp_edit(row *sheet, char *single_command, int *row_to, int *cell_to, char 
 int temp_set(int row_to, int cell_to, int *temp_10);
 int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
 int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator);
-int temp_int(char *single_command, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT]);
+int temp_inc(char *single_command, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT]);
 
 /*these commands are for selection change */
 int select_change(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int *row_counter, int *temp_10);
@@ -945,6 +945,13 @@ int select_change(row *sheet, char *single_command, int *row_from, int *row_to, 
 int change_cell_value(row *sheet, int row, int cell, char separator, char *value,int size)
 {
 	int position = get_cell_position(sheet ,row, cell , separator);
+	if(cell > 1)
+	{
+		if(cell == sheet[row-1].cels_in_row+1)
+			position = position + 2;
+		else
+			position = position +2;
+	}
 	delete_cell_value(sheet, row, cell, separator);
 	row_move_right(sheet, row, cell, size, separator, NOT_ICOL_ACOL);
 	for(int i = 0; i < size ;i++)
@@ -994,11 +1001,11 @@ int delete_cell_value(row *sheet, int row, int cell, char separator)
 			help[j++] = sheet[row-1].one_row[x++];
 	}
 	j++;
-	sheet[row-1].row_size = sheet[row-1].row_size - size;
+	sheet[row-1].row_size = j+1;
 	sheet[row-1].one_row = realloc(sheet[row-1].one_row ,j+1 * sizeof(char));
 	if(sheet[row-1].one_row == NULL)
 		return error_maloc(ERROR_VALUE_ONE);
-	for(int i =0; i < j; i++)
+	for(int i =0; i < j+1; i++)
 		sheet[row-1].one_row[i] = help[i];	
 	return 0;
 }
@@ -1123,7 +1130,7 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 			x = 0;
 			position = get_cell_position(sheet, j, i, separator);
 			if(i > 1)
-				position = position +2 ;
+				position = position +2;
 			
 			delete_cell_value(sheet, j, i, separator);
 			row_move_right(sheet,j, i, str_size, separator, NOT_ICOL_ACOL);	
@@ -1242,6 +1249,11 @@ int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars
 		}
 		temp_vars[tempo_var_num][i] = help[i];
 	}
+	for(int i = 0; i < TEMPO_VARS_LENGHT ; i++)
+	{
+		if(temp_vars[tempo_var_num][i] == '\0')
+			break;
+	}
 	return 1;
 }
 /*Actual cell ll be stored to X_10 temporarily var that is reserved for selections */
@@ -1257,13 +1269,10 @@ use _X
 */
 int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT], char separator)
 {
-	int tempo_var_num = 0;
+	int tempo_var_num = 0, size = 0;
 	char help_num[2];
 	help_num[0] = '0', help_num[1] = '\0';
-	int temp_size = 0;
 	char help[TEMPO_VARS_LENGHT];
-	int size = 0;
-	int error = 0;
 	if(isdigit(single_command[NUMBER_IS_LOCATED]) != 0)
 	{
 		help_num[0] = single_command[NUMBER_IS_LOCATED];
@@ -1281,19 +1290,14 @@ int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_var
 		if(tempo_vars[tempo_var_num][i] == '\0')
 			break;
 	}
-	error = sheet_row_realoc(sheet, row, size);
-	if(error == -1)
-		return -1;
 
-	delete_cell_value(sheet,row,cell,separator);
-	row_move_right(sheet, row, cell+1, temp_size, separator, NOT_ICOL_ACOL);
 	change_cell_value(sheet,row,cell,separator, help, size);
 	return 1;
 }
 /*
 Num value that is stored in temp def ll be increased by one 
 */
-int temp_int(char *single_command, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT])
+int temp_inc(char *single_command, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT])
 {
 	bool is_num = true;
 	int temp_var_num = 0, num = 0;
@@ -1320,8 +1324,11 @@ int temp_int(char *single_command, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LE
 		num++;
 		array_char_init(tempo_vars[temp_var_num], TEMPO_VARS_LENGHT);
 		sprintf(help_string, "%d", num);
-		for(int i = 0; i < TEMPO_VARS_LENGHT; i++)
+		int i = 0;
+		for(; i < TEMPO_VARS_LENGHT; i++)
 			tempo_vars[temp_var_num][i] = help_string[i];
+		tempo_vars[temp_var_num][i+1] = '\0';
+
 	}
 	else
 	{
@@ -1346,8 +1353,8 @@ int temp_edit(row *sheet, char *single_command, int *row_to, int *cell_to, char 
 	}
 	if(strstr(single_command, "use _") != NULL)  // use _X
 		return temp_use(sheet,single_command, *row_to, *cell_to, tempo_vars, separator);
-	if(strstr(single_command, "int _") != NULL)  // inx _X
-		return temp_int(single_command, tempo_vars);
+	if(strstr(single_command, "inc _") != NULL)  // inx _X
+		return temp_inc(single_command, tempo_vars);
 	
 	return 0;
 }
