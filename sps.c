@@ -51,6 +51,7 @@ def _X use _X inc _X [set]
 #define MIN 1
 #define MAX 2
 
+
 typedef struct 
 {
 	char *one_row;  //one row is made of multiple cell 
@@ -706,8 +707,13 @@ int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
 	int k = 0;
 	int position = 0;
 	position = get_cell_position(sheet, row, cell, separator);
-	if(cell > 0)
-		position = position +2;
+	if(cell > 1)
+	{
+		if(cell == sheet[row-1].cels_in_row+1)
+			position = position + 2;
+		else
+			position = position +2;
+	}
 	for(;position < sheet[row-1].row_size ;position++)
 	{
 		store[k++] = sheet[row-1].one_row[position];
@@ -724,12 +730,10 @@ int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
 					break;
 			}
 			else
-			{
 				break;
-			}
 		}
 	}
-	store[k] = '\0';
+	store[k+1] = '\0';
 	return 0;
 }
 /*
@@ -742,16 +746,17 @@ int select_min_max(row *sheet, int *row_from, int *row_to, int *cell_from, int *
 	int help = 0, result = 0;
 	char *hellper = NULL;
 	bool firs_time = false;
+	int h_cf = *cell_from, h_rf = *row_from;
 	
 	for(int i = *row_from-1; i < *row_to; i++)
 	{
-		for(int j = *cell_from -1; j < *cell_to;j++)
+		for(int j = *cell_from -1; j <= *cell_to+1;j++)
 		{
 			hellper = malloc(sheet[i].row_size * sizeof(char));
 			if(hellper == NULL)
 				return error_maloc(ERROR_VALUE_ONE);
 			array_char_init(hellper, sheet[i].row_size);
-			store_one_cell(hellper, sheet, i +1, j +1, separator);
+			store_one_cell(hellper, sheet, i+1, j+1, separator);
 			if(isdigit(hellper[0]) != 0)
 			{
 				help = atoi(hellper);
@@ -759,26 +764,25 @@ int select_min_max(row *sheet, int *row_from, int *row_to, int *cell_from, int *
 				{
 					result = help;
 					firs_time = true;
-					
-					*row_to = *row_from = i + 1;
-					*cell_from = *cell_to = j + 1;
+					h_rf = i + 1;
+					h_cf = j + 1;
 				}
 				if(operation == MIN)//min
 				{
 					if(help < result)
 					{
 						result = help;
-						*row_to = *row_from = i + 1;
-						*cell_from = *cell_to = j + 1;
+						h_rf = i + 1;
+						h_cf = j + 1;
 					}
 				}
-				else//max 
+				if(operation == MAX)
 				{
-					if(help>result)
+					if(help > result)
 					{
 						result = help;
-						*row_from = *row_to = i+1;
-						*cell_from = *cell_to = j+1;
+						h_rf = i + 1;
+						h_cf = j + 1;
 					}
 				}
 			}
@@ -790,6 +794,12 @@ int select_min_max(row *sheet, int *row_from, int *row_to, int *cell_from, int *
 		*row_to = *row_from;
 		*cell_to = *cell_from;
 	}
+	else
+	{
+		*row_to = *row_from = h_rf;
+		*cell_to = *cell_from = h_cf;
+	}
+	
 	return result;
 }
 /*
@@ -950,9 +960,7 @@ int delete_cell_value(row *sheet, int row, int cell, char separator)
 {
 	int position = get_cell_position(sheet, row, cell, separator);
 	if(cell > 1)
-	{
 		position = position +2;
-	}
 
 	// if cell is empty
 	if(sheet[row-1].one_row[position] == separator)
@@ -987,7 +995,7 @@ int delete_cell_value(row *sheet, int row, int cell, char separator)
 	}
 	j++;
 	sheet[row-1].row_size = sheet[row-1].row_size - size;
-	sheet[row-1].one_row = realloc(sheet[row-1].one_row ,j * sizeof(char));
+	sheet[row-1].one_row = realloc(sheet[row-1].one_row ,j+1 * sizeof(char));
 	if(sheet[row-1].one_row == NULL)
 		return error_maloc(ERROR_VALUE_ONE);
 	for(int i =0; i < j; i++)
@@ -1066,10 +1074,15 @@ int get_cell_size(row *sheet, char separator, int cell, int row)
 	int i =0;
 	int position = 0;
 	position = get_cell_position(sheet, row, cell, separator);
+
+	if(cell > 1)
 	{
-		if(cell > 1)
+		if(cell ==  sheet[row-1].cels_in_row +1)
+			position = position +1;
+		else
 			position = position +2;
 	}
+
 	bool first_cell = false;
 	if(position == 0)
 	{
