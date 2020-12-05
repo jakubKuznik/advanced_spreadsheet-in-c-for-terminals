@@ -271,8 +271,8 @@ int row_move_right(row *sheet, int row, int cell, int space, char separator, int
 	position = get_cell_position(sheet, row, cell, separator);
 	if(cell > 1)
 	{
-		if(icol_not == 0)
-			position = position +2;
+		if(icol_not == NOT_ICOL_ACOL)
+			position = position +2 ;
 	}		
 	sheet[row-1].one_row = realloc(sheet[row-1].one_row, (sheet[row-1].row_size + space) * sizeof(char));
 	if(sheet[row-1].one_row == NULL)
