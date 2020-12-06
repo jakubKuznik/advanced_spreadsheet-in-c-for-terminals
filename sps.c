@@ -111,6 +111,7 @@ int c_e_clear(row *sheet, int r_f, int r_t, int c_f, int c_t, char separator);
 int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell, int row_counter);
 //avg [R,C]  It store sum or avg to chosen cell from selection 
 int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int avg_sum);
+int get_sa_cell(char *single_command, int *row, int *cell);
 
 //THIS ARE BEING DONE ON BEGING TO CHECK ARGUMENTS FORMAT AND STORE SEPARATOR 
 int separe(int argc, char *argv[], int *separator); //find cell separator 
@@ -1159,19 +1160,16 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 	return 1;
 }
 /*
-This function should take selection ant count sum in cells or avreage. 
+IF command has something like swap [R,C]
+This function ll find that cell 
 */
-int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int avg_sum)
+int get_sa_cell(char *single_command, int *row, int *cell)
 {
-	char *help = NULL;
-	int count = 0;
-	float num = 0.00;
-	float sum = 0.00;
-	bool is_num = true;
-	int i = 0, k = 0;	
 	char num_one[MAX_COMMAND_SIZE], num_two[MAX_COMMAND_SIZE];
-	int swap_row = 0;
-	int swap_cell = 0;
+	array_char_init(num_one, MAX_COMMAND_SIZE);
+	array_char_init(num_two, MAX_COMMAND_SIZE);
+	int i = NUMBER_IS_LOCATED;
+	int k = 0;
 
 	for(; single_command[i] != ',' ;i++)
 	{
@@ -1187,52 +1185,98 @@ int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int
 		if(isdigit(single_command[i]) == 0)		
 			return error_syntax(ERROR_VALUE_ONE);
 	}
-	swap_row = atoi(num_one);
-	swap_cell = atoi(num_two);
+	*row = atoi(num_one);
+	*cell = atoi(num_two);
+	return 0;
+}
+/*
+It count sum or avreage of choosen cell 
+*/
+int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int avg_sum)
+{
+	char *help = NULL;
+	float count = 0.00;
+	int num = 0;
+	int sum = 0;
+	float f_sum = 0.00;
+	bool is_num = true;
+	int swap_row = 0, swap_cell = 0;
+	int error = 0;
 
+	error = get_sa_cell(single_command, &swap_row, &swap_cell);
+	if(error == -1)
+		return -1;
+	
 	if(swap_row > row_counter || swap_cell > sheet[0].cels_in_row +1)
 		return error_syntax(ERROR_VALUE_ONE);
 
-
-
-
-	for(int k = r_f; i < r_t +1; k++)
+	for(int k = r_f; k < r_t +1; k++)
 	{
-		help = malloc(sheet[k-1].row_size);
+		help = malloc(sheet[k-1].row_size * sizeof(char));
 		if(help == NULL)
 			error_maloc(ERROR_VALUE_ONE);
 		array_char_init(help, sheet[k-1].row_size);
+
 		for(int j = c_f; j < c_t + 1 ; j++ )
 		{
+			array_char_init(help, sheet[k-1].row_size);
 			store_one_cell(help, sheet, k, j, separator);
-			
-			for(int l = 0; help[l] != '\0' ; k++)
-				if(isdigit(help[l]) == 0)
-					is_num = false;
+			if(isdigit(help[0]) == 0)
+			{
+				is_num = false;
+			}
+	//		for(int t = 0; t < help[t] != '\0'; t++)
+			//	printf("%c",help[t], t);
 			if(is_num == true)
 			{
-				count++;
-				num = atof(help);
+				count = count + 1;
+				num = atoi(help);
 			}
 			sum = sum + num;	
 		}
+		free(help);
 		is_num = true;
 	}
+
+	f_sum = (float)sum;
 	if(avg_sum == SUM)
-		sum = sum;
+		f_sum = f_sum;
 	else
-		sum = sum / count;
+		f_sum = (f_sum / count);
+	
+	help = malloc(sheet[0].row_size + sheet[1].row_size * sizeof(char));
+	array_char_init(help, sheet[0].row_size+ sheet[1].row_size);
+	sprintf(help, " %.2f ", f_sum);
 
-	array_char_init(help, sheet[i].row_size);
-	sprintf(help, "%f", sum);
-
+	int size = 0;
+	for(int i = 0; help[i] != '\0';i++)
+		size = size + 1;
+	int position = 0;
+	position = get_cell_position(sheet ,swap_row, swap_cell, separator);
+	if(swap_cell > 1)
+	{
+		if(swap_cell == sheet[swap_row-1].cels_in_row+1)
+			position = position + POSITION_FIX-1;
+		else
+			position = position + POSITION_FIX;
+	}
+	row_move_right(sheet, swap_row, swap_cell,size , separator,NOT_ICOL_ACOL);
+	
+	sheet[swap_row-1].one_row[position-1] = separator;
+	for(int i = 0; i < size+1 ;i++)
+	{
+		sheet[swap_row-1].one_row[position-1] = help[i];
+		position = position +1 ;
+		if(help[i] == '\0')
+		{
+			sheet[swap_row-1].one_row[position] = help[i];
+			break;
+		}
+	}
+	free(help);
 	return 1;
 }
 /*
-int c_e_avg()
-{
-
-}
 int c_e_count()
 {
 
