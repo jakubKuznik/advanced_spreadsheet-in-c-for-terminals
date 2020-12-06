@@ -53,6 +53,13 @@ def _X use _X inc _X [set]
 #define AVG 1
 #define SUM 2
 #define POSITION_FIX 2
+#define SPACE_FOR_NEWLINE 2
+#define LONG_FORMAT 2
+#define SHORT_FORMAT 1
+#define LONG_FOMRAT_COMMAS 3
+#define SHORT_FORMAT_COMMAS 1
+#define LEN 0
+#define COUNT 1
 
 typedef struct 
 {
@@ -109,9 +116,11 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 int c_e_clear(row *sheet, int r_f, int r_t, int c_f, int c_t, char separator);
 //swap select cell and chosen 
 int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell, int row_counter);
+//It store sum of not empty cells or some cell lenght to difrent cell
+int c_e_len_count(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int len_count);
 //avg [R,C]  It store sum or avg to chosen cell from selection 
 int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int avg_sum);
-int get_sa_cell(char *single_command, int *row, int *cell);
+int get_sa_cell(char *single_command, int *row, int *cell, bool count);
 
 //THIS ARE BEING DONE ON BEGING TO CHECK ARGUMENTS FORMAT AND STORE SEPARATOR 
 int separe(int argc, char *argv[], int *separator); //find cell separator 
@@ -393,11 +402,11 @@ int move_rows_down(row *sheet, int row, int *row_counter, char separator)
 		sheet[i].row_size = sheet[i-1].row_size;
 		sheet[i].cels_in_row = sheet[i-1].cels_in_row;
 	}
-	sheet[i].one_row = malloc(c+2 * sizeof(char));
+	sheet[i].one_row = malloc(c+SPACE_FOR_NEWLINE * sizeof(char));
 	if(sheet[i].one_row == NULL)
 		return error_maloc(ERROR_VALUE_ONE);
 	sheet[i].cels_in_row = c;
-	sheet[i].row_size = c+2;
+	sheet[i].row_size = c+SPACE_FOR_NEWLINE;
 	for(int j = 0; j < c; j++)
 		sheet[i].one_row[j] = separator;
     sheet[i].one_row[c] = '\n';
@@ -563,7 +572,7 @@ int selec_changer_usual(char *single_command, int *h_rf, int *h_rt, int *h_cf, i
 	array_char_init(num2,MAX_COMMAND_SIZE);
 	array_char_init(num3,MAX_COMMAND_SIZE);
 	array_char_init(num4,MAX_COMMAND_SIZE);
-	if(type == 1) //[R,C]
+	if(type == SHORT_FORMAT) //[R,C]
 	{			
 		if(single_command[j] == '_')   // [_,C]
 		{
@@ -884,14 +893,14 @@ int select_change_simplify(row *sheet, char *single_command, int *row_from, int 
 			if(single_command[i] == ',')
 				commas++;
 		
-		if(commas == 1) //[R,C]
+		if(commas == SHORT_FORMAT_COMMAS) //[R,C]
 		{
-			if(selec_changer_usual(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 1, sheet, *row_counter ) == 1) 
+			if(selec_changer_usual(single_command, &h_rf, &h_rt, &h_cf, &h_ct, SHORT_FORMAT, sheet, *row_counter ) == 1) 
 				command_executed = true;
 		}
-		else if(commas == 3)   //[R1,R2,C1,C2]
+		else if(commas == LONG_FOMRAT_COMMAS)   //[R1,R2,C1,C2]
 		{
-			if(selec_changer_usual(single_command, &h_rf, &h_rt, &h_cf, &h_ct, 2, sheet, *row_counter) == 1)
+			if(selec_changer_usual(single_command, &h_rf, &h_rt, &h_cf, &h_ct, LONG_FORMAT, sheet, *row_counter) == 1)
 				command_executed = true;
 		}
 		else
@@ -923,7 +932,6 @@ int select_change_simplify(row *sheet, char *single_command, int *row_from, int 
 		{
 			while (h_ct > sheet[0].cels_in_row+1)
 				s_e_icol_acol(sheet, sheet[0].cels_in_row+1, separator, row_counter, ACOL);
-			fprintf(stderr, "It has to be resized ");
 		}
 		*row_from = h_rf;
 		*row_to = h_rt;
@@ -1039,7 +1047,10 @@ swap [R,C]
 int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell, int row_counter)
 {
 	char num_one[MAX_COMMAND_SIZE], num_two[MAX_COMMAND_SIZE];
-	int k =0, i = NUMBER_IS_LOCATED +1, swap_row = 0, swap_cell = 0, x = 0, cell_size = 0, position = 0, position2 = 0;
+    array_char_init(num_one, MAX_COMMAND_SIZE);
+	array_char_init(num_two, MAX_COMMAND_SIZE);
+	int k =0, i = NUMBER_IS_LOCATED +1, swap_row = 0, swap_cell = 0;
+
 	for(; single_command[i] != ',' ;i++)
 	{
 		num_one[k++] = single_command[i];
@@ -1064,33 +1075,29 @@ int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell
 		fprintf(stderr, "Error u cant swap ");
 		return -1;
 	}
+	char *phelp = NULL, *phelp_two = NULL;
+	phelp = malloc((sheet[swap_row-1].row_size) * sizeof(char));
+	if(phelp == NULL)
+		return error_maloc(ERROR_VALUE_ONE);
+	phelp_two = malloc((sheet[row-1].row_size) * sizeof(char));
+	if(phelp_two == NULL)
+		return error_maloc(ERROR_VALUE_ONE);
 
-	char *phelp = malloc((sheet[swap_row-1].row_size) * sizeof(char));
+	int cs = 0, cs_two = 0;
+
+	cs = get_cell_size(sheet, separator, swap_cell, swap_row);
+	cs_two = get_cell_size(sheet, separator, cell, row);
+
 	array_char_init(phelp, sheet[swap_row-1].row_size);
+	array_char_init(phelp_two, sheet[row-1].row_size);
+	
 	store_one_cell(phelp, sheet, swap_row, swap_cell, separator);
+	store_one_cell(phelp_two, sheet, row, cell, separator);
 	
-	cell_size = get_cell_size(sheet, separator, cell, row );
+	change_cell_value(sheet, swap_row, swap_cell, separator, phelp_two, cs);
+	change_cell_value(sheet, row, cell, separator, phelp, cs_two);
 
-	sheet[swap_row-1].one_row = realloc(sheet[swap_row-1].one_row, (sheet[row].row_size + cell_size) * sizeof(char));
-
-	position = get_cell_position(sheet, swap_row, swap_cell, separator);
-	if(swap_cell > 1)
-		position = position + POSITION_FIX;
-	position2 = get_cell_position(sheet, row, cell, separator);
-	if(cell > 1)
-		position2 = position2 + POSITION_FIX;
-	
-	for(int i = position; sheet[swap_row-1].one_row[i] != separator && sheet[swap_row-1].one_row[i] != '\n';i++)
-		phelp[x++] = sheet[swap_row].one_row[i];
-
-	c_e_clear(sheet, swap_row, swap_row, swap_cell, swap_cell, separator);
-	row_move_right(sheet, swap_row, swap_cell, cell_size, separator, NOT_ICOL_ACOL);
-
-
-
-	for(int i = position; i < position + cell_size;i++)
-		sheet[swap_row-1].one_row[position++] =  sheet[row-1].one_row[position2++];
-
+	free(phelp_two);
 	free(phelp);
 	return 1;
 }
@@ -1104,7 +1111,7 @@ int get_cell_size(row *sheet, char separator, int cell, int row)
 	if(cell > 1)
 	{
 		if(cell ==  sheet[row-1].cels_in_row +1)
-			position = position +1;
+			position = position + POSITION_FIX -1;
 		else
 			position = position + POSITION_FIX;
 	}
@@ -1163,12 +1170,16 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 IF command has something like swap [R,C]
 This function ll find that cell 
 */
-int get_sa_cell(char *single_command, int *row, int *cell)
+int get_sa_cell(char *single_command, int *row, int *cell, bool count)
 {
+	int position = NUMBER_IS_LOCATED;
+	if(count == true)
+		position = position +2;
+
 	char num_one[MAX_COMMAND_SIZE], num_two[MAX_COMMAND_SIZE];
 	array_char_init(num_one, MAX_COMMAND_SIZE);
 	array_char_init(num_two, MAX_COMMAND_SIZE);
-	int i = NUMBER_IS_LOCATED;
+	int i = position;
 	int k = 0;
 
 	for(; single_command[i] != ',' ;i++)
@@ -1203,7 +1214,7 @@ int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int
 	int swap_row = 0, swap_cell = 0;
 	int error = 0;
 
-	error = get_sa_cell(single_command, &swap_row, &swap_cell);
+	error = get_sa_cell(single_command, &swap_row, &swap_cell, false);
 	if(error == -1)
 		return -1;
 	
@@ -1223,8 +1234,6 @@ int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int
 			store_one_cell(help, sheet, k, j, separator);
 			if(isdigit(help[0]) == 0)
 				is_num = false;
-	//		for(int t = 0; t < help[t] != '\0'; t++)
-			//	printf("%c",help[t], t);
 			if(is_num == true)
 			{
 				count = count + 1;
@@ -1235,26 +1244,24 @@ int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int
 		free(help);
 		is_num = true;
 	}
-
 	f_sum = (float)sum;
 	if(avg_sum == SUM)
-	{
 		f_sum = f_sum;
-	}
 	else
 		f_sum = (f_sum / count);
 	
 	help = malloc(sheet[0].row_size + sheet[1].row_size * sizeof(char));
+	if(help == NULL)
+		return error_maloc(ERROR_VALUE_ONE);
 	help_two = malloc(sheet[0].row_size + sheet[1].row_size * sizeof(char));
+	if(help_two == NULL)
+		return error_maloc(ERROR_VALUE_ONE);
 	array_char_init(help, sheet[0].row_size+ sheet[1].row_size);
 	array_char_init(help_two, sheet[0].row_size+ sheet[1].row_size);
 	sprintf(help, " %.1f ", f_sum);
-
-	int size = 0;
+	int size = 0, k = 0;
 	for(;help[size] != '\0';)
 		size++;
-
-	int k = 0;
 	for(int i =0; i < sheet[1].row_size; i++)
 	{
 		if(help[i] == ' ')
@@ -1262,34 +1269,105 @@ int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int
 		help_two[k++] = help[i];
 	}
 	for(int i =0; i < sheet[1].row_size;i++)
-	{
 		if(help_two[i] == '.')
-		{
 			if(help_two[i+1] == '0')
 			{
 				help_two[i] = '\0';
 				break;
 			}
-		}
-	}
-
-
 	change_cell_value(sheet, swap_row, swap_cell, separator, help_two, size );
-
 	free(help);
 	free(help_two);
 	return 1;
 }
 /*
-int c_e_count()
-{
-
-}
-int c_e_len()
-{
-
-}
+To chosen cell store selection cell lenght. Ot it can count no empty values. 
 */
+int c_e_len_count(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int len_count)
+{
+	char *help = NULL, *help_two = NULL;
+	int num = 0;
+	int sum = 0;
+	float f_sum = 0.00;
+	int swap_row = 0, swap_cell = 0;
+	int error = 0;
+
+	if(len_count == COUNT)
+		error = get_sa_cell(single_command, &swap_row, &swap_cell, true);
+	else
+		error = get_sa_cell(single_command, &swap_row, &swap_cell, false);
+	if(error == -1)
+		return -1;
+	if(swap_row > row_counter || swap_cell > sheet[0].cels_in_row +1)
+		return error_syntax(ERROR_VALUE_ONE);
+	for(int k = r_f; k < r_t +1; k++)
+	{
+		help = malloc(sheet[k-1].row_size * sizeof(char));
+		if(help == NULL)
+			error_maloc(ERROR_VALUE_ONE);
+		array_char_init(help, sheet[k-1].row_size);
+
+		for(int j = c_f; j < c_t + 1 ; j++ )
+		{
+			array_char_init(help, sheet[k-1].row_size);
+			if(len_count == LEN)
+			{
+				num = get_cell_position(sheet, k, j, separator);
+				if(sheet[k-1].one_row[num] == '\n' || sheet[k-1].one_row[num] == separator)
+					num = 0;
+				else
+					num = 1;	
+			}
+			else
+			{
+				num = get_cell_position(sheet, k, j, separator);
+				for(int p = num; p < sheet[k-1].row_size; p++ )
+				{
+					if(sheet[k-1].one_row[p] == '\n')
+						num = p - num;
+					if(sheet[k-1].one_row[p] == separator)
+						num = p - num;
+				}
+			}
+		
+			sum = sum + num;
+		}
+		free(help);
+	}
+
+	f_sum = (float)sum;
+	help = malloc(sheet[0].row_size + sheet[1].row_size * sizeof(char));
+	if(help == NULL)
+		return error_maloc(ERROR_VALUE_ONE);
+	help_two = malloc(sheet[0].row_size + sheet[1].row_size * sizeof(char));
+	if(help_two == NULL)
+		return error_maloc(ERROR_VALUE_ONE);
+	array_char_init(help, sheet[0].row_size+ sheet[1].row_size);
+	array_char_init(help_two, sheet[0].row_size+ sheet[1].row_size);
+	sprintf(help, " %.1f ", f_sum);
+
+	int size = 0, k = 0;
+	for(;help[size] != '\0';)
+		size++;
+	for(int i =0; i < sheet[1].row_size; i++)
+	{
+		if(help[i] == ' ')
+			continue;
+		help_two[k++] = help[i];
+	}
+	for(int i =0; i < sheet[1].row_size;i++)
+		if(help_two[i] == '.')
+			if(help_two[i+1] == '0')
+			{
+				help_two[i] = '\0';
+				break;
+			}
+
+	change_cell_value(sheet, swap_row, swap_cell, separator, help_two, size );
+	free(help);
+	free(help_two);
+	return 1;
+}
 /*if it found command for editing sheet content it call it ll be executed*/
 int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter)
 {
@@ -1339,20 +1417,24 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 	if(strstr(single_command, "count") != NULL) //count [R,C]
 	{
 		if(single_command[6] == '[')
+		{
 			if(last_character == ']')
-				return 1;
+				return c_e_len_count(sheet, single_command, *row_from, *row_to, *cell_from, *cell_to, separator, row_counter, COUNT);
 			else
-				return error_syntax(ERROR_VALUE_ONE);
+				return 0;
+		}
 		else
 			return error_syntax(ERROR_VALUE_ONE);
 	}
 	if(strstr(single_command, "len") != NULL) //len [R,C]
 	{
 		if(single_command[4] == '[')
+		{
 			if(last_character == ']')
-				return 1;
+				return c_e_len_count(sheet, single_command, *row_from, *row_to, *cell_from, *cell_to, separator, row_counter, LEN);
 			else
-				return error_syntax(ERROR_VALUE_ONE);
+				return 0;
+		}
 		else
 			return error_syntax(ERROR_VALUE_ONE);
 	}
@@ -1369,9 +1451,9 @@ int temp_def(row *sheet, char *single_command, int row, int cell, char temp_vars
 	help_num[0] = '0', help_num[1] = '\0';
 	int tempo_var_num = 0;
 	store_one_cell(help, sheet, row, cell, separator);
-	if(isdigit(single_command[5]) != 0)
+	if(isdigit(single_command[NUMBER_IS_LOCATED]) != 0)
 	{
-		help_num[0] = single_command[5];
+		help_num[0] = single_command[NUMBER_IS_LOCATED];
 		tempo_var_num = atoi(help_num);
 	}
 	else
@@ -1426,7 +1508,6 @@ int temp_use(row *sheet, char *single_command, int row, int cell, char tempo_var
 		if(tempo_vars[tempo_var_num][i] == '\0')
 			break;
 	}
-
 	change_cell_value(sheet,row,cell,separator, help, size);
 	return 1;
 }
@@ -1476,22 +1557,14 @@ int temp_inc(char *single_command, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LE
 /*if it found command for temporarily variables it call it ll be executed*/
 int temp_edit(row *sheet, char *single_command, int *row_to, int *cell_to, char tempo_vars[TEMPO_VARS_MAX][TEMPO_VARS_LENGHT],int *temp_10, char separator)
 {
-	int error = 0;
 	if(strstr(single_command, "[set]") != NULL)  //[set]
 		return temp_set(*row_to, *cell_to, temp_10);
 	if(strstr(single_command, "def _") != NULL)  // def _X
-	{
-		error = temp_def(sheet, single_command, *row_to, *cell_to, tempo_vars, separator);
-		if(error != 1)
-			return -1;
-		else
-			return 1;
-	}
+		return temp_def(sheet, single_command, *row_to, *cell_to, tempo_vars, separator);
 	if(strstr(single_command, "use _") != NULL)  // use _X
 		return temp_use(sheet,single_command, *row_to, *cell_to, tempo_vars, separator);
 	if(strstr(single_command, "inc _") != NULL)  // inx _X
 		return temp_inc(single_command, tempo_vars);
-	
 	return 0;
 }
 /*
@@ -1538,7 +1611,6 @@ int command_execution(int commands_sum, char *commands, int commands_char_sum, i
 	int error = 0;
 	int row_from = 1, row_to = 1;
 	int cell_from = 1, cell_to = 1;
-	//Here are temporarily variables. 10 is reserved for store actual cell;
 	int temp_10[2]; //row cell
 	temp_10[0] = temp_10[1] = 0;
 	char tempo_vars[TEMPO_VARS_MAX][MAX_COMMAND_SIZE];
