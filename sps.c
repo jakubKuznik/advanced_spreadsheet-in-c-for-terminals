@@ -1194,7 +1194,7 @@ It count sum or avreage of choosen cell
 */
 int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int avg_sum)
 {
-	char *help = NULL;
+	char *help = NULL, *help_two = NULL;
 	float count = 0.00;
 	int num = 0;
 	int sum = 0;
@@ -1222,9 +1222,7 @@ int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int
 			array_char_init(help, sheet[k-1].row_size);
 			store_one_cell(help, sheet, k, j, separator);
 			if(isdigit(help[0]) == 0)
-			{
 				is_num = false;
-			}
 	//		for(int t = 0; t < help[t] != '\0'; t++)
 			//	printf("%c",help[t], t);
 			if(is_num == true)
@@ -1240,40 +1238,46 @@ int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int
 
 	f_sum = (float)sum;
 	if(avg_sum == SUM)
+	{
 		f_sum = f_sum;
+	}
 	else
 		f_sum = (f_sum / count);
 	
 	help = malloc(sheet[0].row_size + sheet[1].row_size * sizeof(char));
+	help_two = malloc(sheet[0].row_size + sheet[1].row_size * sizeof(char));
 	array_char_init(help, sheet[0].row_size+ sheet[1].row_size);
-	sprintf(help, " %.2f ", f_sum);
+	array_char_init(help_two, sheet[0].row_size+ sheet[1].row_size);
+	sprintf(help, " %.1f ", f_sum);
 
 	int size = 0;
-	for(int i = 0; help[i] != '\0';i++)
-		size = size + 1;
-	int position = 0;
-	position = get_cell_position(sheet ,swap_row, swap_cell, separator);
-	if(swap_cell > 1)
+	for(;help[size] != '\0';)
+		size++;
+
+	int k = 0;
+	for(int i =0; i < sheet[1].row_size; i++)
 	{
-		if(swap_cell == sheet[swap_row-1].cels_in_row+1)
-			position = position + POSITION_FIX-1;
-		else
-			position = position + POSITION_FIX;
+		if(help[i] == ' ')
+			continue;
+		help_two[k++] = help[i];
 	}
-	row_move_right(sheet, swap_row, swap_cell,size , separator,NOT_ICOL_ACOL);
-	
-	sheet[swap_row-1].one_row[position-1] = separator;
-	for(int i = 0; i < size+1 ;i++)
+	for(int i =0; i < sheet[1].row_size;i++)
 	{
-		sheet[swap_row-1].one_row[position-1] = help[i];
-		position = position +1 ;
-		if(help[i] == '\0')
+		if(help_two[i] == '.')
 		{
-			sheet[swap_row-1].one_row[position] = help[i];
-			break;
+			if(help_two[i+1] == '0')
+			{
+				help_two[i] = '\0';
+				break;
+			}
 		}
 	}
+
+
+	change_cell_value(sheet, swap_row, swap_cell, separator, help_two, size );
+
 	free(help);
+	free(help_two);
 	return 1;
 }
 /*
@@ -1311,20 +1315,24 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 	if(strstr(single_command, "sum") != NULL) //sum [R,C]
 	{
 		if(single_command[4] == '[')
+		{
 			if(last_character == ']')
-				return 1;
+				return c_e_sum_avg(sheet, single_command , *row_from, *row_to, *cell_from, *cell_to, separator, row_counter, SUM);
 			else
 				return error_syntax(ERROR_VALUE_ONE);
+		}
 		else
 			return error_syntax(ERROR_VALUE_ONE);
 	}
 	if(strstr(single_command, "avg") != NULL)  //avg [R,C]
 	{
 		if(single_command[4] == '[')
+		{
 			if(last_character == ']')
-				return 1;
+				return c_e_sum_avg(sheet, single_command , *row_from, *row_to, *cell_from, *cell_to, separator, row_counter, AVG);
 			else
 				return error_syntax(ERROR_VALUE_ONE);
+		}
 		else
 			return error_syntax(ERROR_VALUE_ONE);
 	}
