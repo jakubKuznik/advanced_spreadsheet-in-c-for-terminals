@@ -50,7 +50,9 @@ def _X use _X inc _X [set]
 #define ERROR_VALUE_ZERO 0
 #define MIN 1
 #define MAX 2
-
+#define AVG 1
+#define SUM 2
+#define POSITION_FIX 2
 
 typedef struct 
 {
@@ -100,11 +102,15 @@ int select_min_max(row *sheet, int *row_from, int *row_to, int *cell_from, int *
 int select_find(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char separator );
 
 /*These are for editing sheet content */
-int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator);
+int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter);
 //it replace chosen cell selection with STR 
 int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t, char separator);
 //it just delete cells content 
 int c_e_clear(row *sheet, int r_f, int r_t, int c_f, int c_t, char separator);
+//swap select cell and chosen 
+int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell, int row_counter);
+//avg [R,C]  It store sum or avg to chosen cell from selection 
+int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int avg_sum);
 
 //THIS ARE BEING DONE ON BEGING TO CHECK ARGUMENTS FORMAT AND STORE SEPARATOR 
 int separe(int argc, char *argv[], int *separator); //find cell separator 
@@ -272,7 +278,7 @@ int row_move_right(row *sheet, int row, int cell, int space, char separator, int
 	if(cell > 1)
 	{
 		if(icol_not == NOT_ICOL_ACOL)
-			position = position +2 ;
+			position = position +POSITION_FIX ;
 	}		
 	sheet[row-1].one_row = realloc(sheet[row-1].one_row, (sheet[row-1].row_size + space) * sizeof(char));
 	if(sheet[row-1].one_row == NULL)
@@ -710,9 +716,9 @@ int store_one_cell(char *store, row *sheet, int row, int cell, char separator)
 	if(cell > 1)
 	{
 		if(cell == sheet[row-1].cels_in_row+1)
-			position = position + 2;
+			position = position + POSITION_FIX;
 		else
-			position = position +2;
+			position = position + POSITION_FIX;
 	}
 	for(;position < sheet[row-1].row_size ;position++)
 	{
@@ -940,17 +946,18 @@ int select_change(row *sheet, char *single_command, int *row_from, int *row_to, 
 	}
 	return 0;
 }
-
-
+/*
+It ll store string to cell. 
+*/
 int change_cell_value(row *sheet, int row, int cell, char separator, char *value,int size)
 {
 	int position = get_cell_position(sheet ,row, cell , separator);
 	if(cell > 1)
 	{
 		if(cell == sheet[row-1].cels_in_row+1)
-			position = position + 2;
+			position = position + POSITION_FIX;
 		else
-			position = position +2;
+			position = position + POSITION_FIX;
 	}
 	delete_cell_value(sheet, row, cell, separator);
 	row_move_right(sheet, row, cell, size, separator, NOT_ICOL_ACOL);
@@ -967,7 +974,7 @@ int delete_cell_value(row *sheet, int row, int cell, char separator)
 {
 	int position = get_cell_position(sheet, row, cell, separator);
 	if(cell > 1)
-		position = position +2;
+		position = position + POSITION_FIX;
 
 	// if cell is empty
 	if(sheet[row-1].one_row[position] == separator)
@@ -1028,11 +1035,10 @@ int c_e_clear(row *sheet, int r_f, int r_t, int c_f, int c_t, char separator)
 /*
 swap [R,C]
 */
-int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell)
+int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell, int row_counter)
 {
 	char num_one[MAX_COMMAND_SIZE], num_two[MAX_COMMAND_SIZE];
-	int k =0, i = NUMBER_IS_LOCATED +1;
-	int swap_row = 0, swap_cell = 0;
+	int k =0, i = NUMBER_IS_LOCATED +1, swap_row = 0, swap_cell = 0, x = 0, cell_size = 0, position = 0, position2 = 0;
 	for(; single_command[i] != ',' ;i++)
 	{
 		num_one[k++] = single_command[i];
@@ -1052,22 +1058,34 @@ int c_e_swap(row *sheet, char *single_command, char separator, int row, int cell
 	}
 	swap_row = atoi(num_one);
 	swap_cell = atoi(num_two);
+	if(swap_row > row_counter || swap_cell > sheet[row-1].cels_in_row+1)
+	{
+		fprintf(stderr, "Error u cant swap ");
+		return -1;
+	}
 
-	char *phelp = malloc((sheet[swap_row-1].row_size + sheet[row-1].row_size) * sizeof(char));
+	char *phelp = malloc((sheet[swap_row-1].row_size) * sizeof(char));
+	array_char_init(phelp, sheet[swap_row-1].row_size);
 	store_one_cell(phelp, sheet, swap_row, swap_cell, separator);
 	
-	int x = 0, cell_size = 0;
 	cell_size = get_cell_size(sheet, separator, cell, row );
+
 	sheet[swap_row-1].one_row = realloc(sheet[swap_row-1].one_row, (sheet[row].row_size + cell_size) * sizeof(char));
 
-	int position = get_cell_position(sheet, swap_row, swap_cell, separator);
-	int position2 = get_cell_position(sheet, row, cell, separator);
+	position = get_cell_position(sheet, swap_row, swap_cell, separator);
+	if(swap_cell > 1)
+		position = position + POSITION_FIX;
+	position2 = get_cell_position(sheet, row, cell, separator);
+	if(cell > 1)
+		position2 = position2 + POSITION_FIX;
 	
 	for(int i = position; sheet[swap_row-1].one_row[i] != separator && sheet[swap_row-1].one_row[i] != '\n';i++)
 		phelp[x++] = sheet[swap_row].one_row[i];
 
 	c_e_clear(sheet, swap_row, swap_row, swap_cell, swap_cell, separator);
 	row_move_right(sheet, swap_row, swap_cell, cell_size, separator, NOT_ICOL_ACOL);
+
+
 
 	for(int i = position; i < position + cell_size;i++)
 		sheet[swap_row-1].one_row[position++] =  sheet[row-1].one_row[position2++];
@@ -1087,7 +1105,7 @@ int get_cell_size(row *sheet, char separator, int cell, int row)
 		if(cell ==  sheet[row-1].cels_in_row +1)
 			position = position +1;
 		else
-			position = position +2;
+			position = position + POSITION_FIX;
 	}
 
 	bool first_cell = false;
@@ -1130,7 +1148,7 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 			x = 0;
 			position = get_cell_position(sheet, j, i, separator);
 			if(i > 1)
-				position = position +2;
+				position = position + POSITION_FIX;
 			
 			delete_cell_value(sheet, j, i, separator);
 			row_move_right(sheet,j, i, str_size, separator, NOT_ICOL_ACOL);	
@@ -1141,10 +1159,76 @@ int c_e_set(row *sheet, char *single_command, int r_f, int r_t, int c_f, int c_t
 	return 1;
 }
 /*
-int c_e_sum()
+This function should take selection ant count sum in cells or avreage. 
+*/
+int c_e_sum_avg(row *sheet, char *single_command ,int r_f, int r_t, int c_f, int c_t, char separator, int row_counter, int avg_sum)
 {
+	char *help = NULL;
+	int count = 0;
+	float num = 0.00;
+	float sum = 0.00;
+	bool is_num = true;
+	int i = 0, k = 0;	
+	char num_one[MAX_COMMAND_SIZE], num_two[MAX_COMMAND_SIZE];
+	int swap_row = 0;
+	int swap_cell = 0;
 
+	for(; single_command[i] != ',' ;i++)
+	{
+		num_one[k++] = single_command[i];
+		if(isdigit(single_command[i]) == 0)		
+			return error_syntax(ERROR_VALUE_ONE);
+	}
+	i++;
+	k = 0;
+	for(;single_command[i] != ']';i++)
+	{
+		num_two[k++] = single_command[i];
+		if(isdigit(single_command[i]) == 0)		
+			return error_syntax(ERROR_VALUE_ONE);
+	}
+	swap_row = atoi(num_one);
+	swap_cell = atoi(num_two);
+
+	if(swap_row > row_counter || swap_cell > sheet[0].cels_in_row +1)
+		return error_syntax(ERROR_VALUE_ONE);
+
+
+
+
+	for(int k = r_f; i < r_t +1; k++)
+	{
+		help = malloc(sheet[k-1].row_size);
+		if(help == NULL)
+			error_maloc(ERROR_VALUE_ONE);
+		array_char_init(help, sheet[k-1].row_size);
+		for(int j = c_f; j < c_t + 1 ; j++ )
+		{
+			store_one_cell(help, sheet, k, j, separator);
+			
+			for(int l = 0; help[l] != '\0' ; k++)
+				if(isdigit(help[l]) == 0)
+					is_num = false;
+			if(is_num == true)
+			{
+				count++;
+				num = atof(help);
+			}
+			sum = sum + num;	
+		}
+		is_num = true;
+	}
+	if(avg_sum == SUM)
+		sum = sum;
+	else
+		sum = sum / count;
+
+	array_char_init(help, sheet[i].row_size);
+	sprintf(help, "%f", sum);
+
+	return 1;
 }
+/*
 int c_e_avg()
 {
 
@@ -1159,7 +1243,7 @@ int c_e_len()
 }
 */
 /*if it found command for editing sheet content it call it ll be executed*/
-int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator)
+int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, int *cell_from, int *cell_to, char last_character, char separator, int row_counter)
 {
 	if(strstr(single_command, "set") != NULL)  //set STR 
 	{
@@ -1174,7 +1258,7 @@ int content_edit(row *sheet, char *single_command, int *row_from, int *row_to, i
 	{
 		if(single_command[BRACKET_POSITION] == '[')
 			if(last_character == ']')
-				return c_e_swap(sheet, single_command, separator, *row_to, *cell_to);
+				return c_e_swap(sheet, single_command, separator, *row_to, *cell_to, row_counter);
 			else
 				return error_syntax(ERROR_VALUE_ONE);
 		else
@@ -1380,7 +1464,7 @@ int call_command(row *sheet, char *single_command, int *row_from, int *row_to, i
 	else if(error == 1)
 		return 0;
 
-	error = content_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator);
+	error = content_edit(sheet, single_command, row_from, row_to, cell_from, cell_to, last_char, separator, *row_counter);
 	if(error == -1)
 		return -1;
 	else if(error == 1)
